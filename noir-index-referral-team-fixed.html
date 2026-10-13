@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en-IN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#090909"><title>NOIR — Premium Projects</title>
+<style>
+:root{--bg:#080808;--panel:#121212;--panel2:#181818;--line:#292929;--text:#f4f4f4;--muted:#929292;--silver:#d7d7d7;--silver2:#9c9c9c;--green:#c6f6d5;--radius:22px}*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(ellipse at 50% -20%,#292929 0,#111 33%,var(--bg) 68%);color:var(--text);font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;min-height:100vh}button,input{font:inherit}button{cursor:pointer;color:inherit}.app{max-width:520px;margin:0 auto;min-height:100vh;padding:0 17px 112px}.topbar{display:flex;align-items:center;justify-content:space-between;padding:21px 1px 18px}.brand{display:flex;gap:10px;align-items:center;font-size:19px;letter-spacing:.24em;font-weight:800}.brandmark{width:31px;height:31px;border-radius:10px;background:linear-gradient(145deg,#fff,#777 47%,#292929);display:grid;place-items:center;color:#111;font-size:16px;box-shadow:0 3px 18px #fff1}.top-actions{display:flex;gap:9px}.iconbtn{width:39px;height:39px;border:1px solid #333;border-radius:13px;background:#171717;display:grid;place-items:center;color:#e7e7e7;font-size:17px}.page{display:none;animation:appear .25s ease}.page.active{display:block}@keyframes appear{from{opacity:.45;transform:translateY(5px)}to{opacity:1;transform:none}}.eyebrow{color:#aaa;text-transform:uppercase;letter-spacing:.17em;font-size:10px;font-weight:700}.hero{position:relative;overflow:hidden;border:1px solid #3a3a3a;border-radius:27px;padding:24px 22px 21px;min-height:215px;background:linear-gradient(125deg,#252525,#111 55%,#202020);box-shadow:inset 0 1px #ffffff12,0 16px 40px #0006}.hero:before{content:"";position:absolute;width:200px;height:200px;border-radius:50%;right:-60px;top:-58px;border:1px solid #ffffff16;box-shadow:0 0 0 17px #ffffff05,0 0 0 35px #ffffff04}.hero:after{content:"";position:absolute;width:115px;height:165px;right:35px;top:23px;transform:rotate(31deg);border-radius:60% 40% 50% 45%;background:linear-gradient(120deg,#fff4,#fff0 38%,#cfcfcf1b 70%,#fff1);filter:blur(1px)}.hero>*{position:relative;z-index:1}.hero h1{font-size:31px;line-height:1.08;letter-spacing:-.045em;max-width:260px;margin:15px 0 10px}.hero p{font-size:12px;line-height:1.55;color:#b8b8b8;max-width:245px;margin:0 0 18px}.primary{border:0;border-radius:13px;background:linear-gradient(135deg,#f2f2f2,#a6a6a6);color:#111;font-weight:800;padding:12px 17px;font-size:12px;box-shadow:inset 0 1px #fff8}.section-head{display:flex;justify-content:space-between;align-items:center;margin:26px 1px 13px}.section-head h2{font-size:17px;letter-spacing:-.025em;margin:0}.textbtn{background:none;border:0;color:#c9c9c9;font-size:11px;padding:8px 0}.stats{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-top:13px}.stat{padding:15px;border:1px solid #292929;border-radius:18px;background:linear-gradient(145deg,#171717,#101010)}.stat .label{font-size:10px;color:#999}.stat .value{font-size:23px;font-weight:750;letter-spacing:-.04em;margin:8px 0 4px}.stat .note{font-size:10px;color:#888}.notice{border:1px solid #333;background:#111;border-radius:14px;padding:12px 13px;color:#aaa;font-size:10px;line-height:1.5;margin-top:13px}.notice strong{color:#e7e7e7}.cards{display:grid;gap:12px}.plan{border:1px solid #303030;background:linear-gradient(145deg,#171717,#101010);border-radius:21px;padding:17px;position:relative;overflow:hidden}.plan:before{content:"";position:absolute;right:-38px;top:-56px;width:120px;height:120px;border-radius:50%;border:1px solid #ffffff10;box-shadow:0 0 0 12px #ffffff03}.plan-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;position:relative}.plan-name{font-size:14px;font-weight:750}.tag{border:1px solid #464646;color:#ccc;border-radius:30px;padding:5px 8px;font-size:9px;letter-spacing:.07em;text-transform:uppercase}.price{font-size:28px;font-weight:800;letter-spacing:-.05em;margin:15px 0 4px}.price small{font-size:11px;color:#aaa;font-weight:500;letter-spacing:0}.plan-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:15px 0}.metric{background:#202020;border-radius:11px;padding:10px 8px}.metric span{display:block;color:#999;font-size:9px;margin-bottom:6px}.metric strong{font-size:12px}.plan .sub{font-size:10px;color:#888;line-height:1.5;margin:9px 0 13px}.secondary{width:100%;padding:12px;border-radius:12px;background:#202020;border:1px solid #3a3a3a;font-size:11px;font-weight:750}.secondary:active,.primary:active{transform:scale(.99)}.searchbox{display:flex;gap:9px;margin:16px 0}.searchbox input{width:100%;background:#151515;color:white;border:1px solid #303030;border-radius:13px;padding:13px 14px;outline:none;font-size:12px}.searchbox input:focus{border-color:#777}.tabs{display:flex;padding:4px;background:#141414;border:1px solid #292929;border-radius:14px;margin:17px 0 14px}.tab{flex:1;border:0;background:transparent;color:#999;padding:10px;border-radius:10px;font-size:11px}.tab.active{color:#111;background:linear-gradient(135deg,#eee,#aaa);font-weight:800}.empty{border:1px dashed #373737;border-radius:19px;padding:28px 18px;text-align:center;color:#929292;font-size:12px;line-height:1.6}.empty .symbol{font-size:28px;margin-bottom:10px}.ref-card{border:1px solid #333;border-radius:23px;padding:20px;background:linear-gradient(145deg,#222,#101010);margin-top:16px}.ref-card h2{font-size:22px;letter-spacing:-.04em;margin:10px 0}.ref-card p{font-size:12px;color:#aaa;line-height:1.6}.commission{font-size:41px;font-weight:850;letter-spacing:-.06em;margin:17px 0 4px}.code-row{display:flex;gap:8px;margin-top:15px}.code{min-width:0;flex:1;padding:13px;border:1px solid #393939;background:#0b0b0b;border-radius:12px;font-size:11px;color:#ddd;overflow:hidden;text-overflow:ellipsis}.small-btn{border:1px solid #555;background:#242424;border-radius:12px;padding:0 14px;font-size:11px;font-weight:750}.list{margin-top:13px;border:1px solid #292929;border-radius:18px;overflow:hidden}.listrow{display:flex;justify-content:space-between;align-items:center;padding:15px;border-bottom:1px solid #292929;font-size:12px}.listrow:last-child{border:0}.listrow span{color:#999;font-size:10px;display:block;margin-top:5px}.pill{font-size:9px;border:1px solid #444;border-radius:30px;padding:5px 8px;color:#bbb}.profile{display:flex;gap:13px;align-items:center;padding:19px;border:1px solid #303030;border-radius:20px;background:#141414;margin-top:15px}.avatar{width:49px;height:49px;border-radius:16px;background:linear-gradient(140deg,#eee,#777);color:#111;display:grid;place-items:center;font-size:20px;font-weight:900}.profile h3{margin:0 0 5px;font-size:14px}.profile p{margin:0;color:#999;font-size:10px}.nav-wrap{position:fixed;bottom:max(13px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);width:min(486px,calc(100% - 28px));z-index:10}.nav{position:relative;display:grid;grid-template-columns:repeat(4,1fr);padding:7px;border:1px solid #ffffff1d;border-radius:23px;background:rgba(23,23,23,.82);backdrop-filter:blur(22px) saturate(135%);-webkit-backdrop-filter:blur(22px) saturate(135%);box-shadow:0 12px 45px #000b,inset 0 1px #ffffff14;isolation:isolate}.nav-indicator{position:absolute;top:7px;bottom:7px;left:7px;width:calc((100% - 14px)/4);border-radius:17px;z-index:-1;background:linear-gradient(145deg,#ffffff28,#ffffff0a 55%,#ffffff16);border:1px solid #ffffff24;box-shadow:inset 0 1px #ffffff30,0 2px 10px #0005;backdrop-filter:blur(16px);transition:transform .48s cubic-bezier(.2,.9,.2,1),border-radius .35s ease}.nav-indicator:after{content:"";position:absolute;top:1px;left:18%;right:18%;height:1px;background:linear-gradient(90deg,transparent,#ffffffa6,transparent);opacity:.7}.nav button{position:relative;z-index:1;border:0;background:transparent;min-height:53px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;color:#898989;font-size:9px;letter-spacing:.01em;transition:color .2s,transform .35s cubic-bezier(.2,.9,.2,1)}.nav button .ico{font-size:17px;line-height:1}.nav button.active{color:#f5f5f5}.nav button.active .ico{filter:drop-shadow(0 0 6px #fff3);transform:translateY(-1px)}.nav button:active{transform:scale(.95)}.toast{position:fixed;z-index:20;bottom:100px;left:50%;transform:translate(-50%,10px);background:#eee;color:#111;border-radius:12px;padding:11px 16px;font-size:11px;font-weight:750;opacity:0;pointer-events:none;transition:all .25s;white-space:nowrap;box-shadow:0 8px 28px #0008}.toast.show{opacity:1;transform:translate(-50%,0)}.footer-note{text-align:center;color:#666;font-size:9px;line-height:1.6;padding:25px 5px 0}.hidden{display:none!important}@media(min-width:600px){body{padding:16px 0}.app{border:1px solid #252525;border-radius:30px;min-height:calc(100vh - 32px);background:#090909;padding-left:22px;padding-right:22px}.nav-wrap{bottom:25px}}
+
+/* Final NOIR UI polish */
+*{-webkit-tap-highlight-color:transparent}button,a,[role="button"]{-webkit-tap-highlight-color:transparent;outline:none}button:focus-visible{outline:1px solid #bdbdbd;outline-offset:3px}button:active{filter:brightness(1.08)}
+.stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.stat{min-height:112px;position:relative;overflow:hidden}.stat:after{content:"";position:absolute;right:-22px;bottom:-34px;width:82px;height:82px;border:1px solid #ffffff12;border-radius:50%;box-shadow:0 0 0 10px #ffffff03}.stat .value{font-size:22px}.stat .note{max-width:145px;line-height:1.45}
+.account-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:15px}.action-card{border:1px solid #393939;border-radius:17px;background:linear-gradient(145deg,#202020,#111);padding:16px;text-align:left;min-height:94px;transition:transform .22s,border-color .22s,background .22s}.action-card:active{transform:scale(.985)}.action-card .action-icon{display:grid;place-items:center;width:34px;height:34px;border:1px solid #ffffff20;border-radius:12px;background:#ffffff08;font-size:17px;margin-bottom:12px}.action-card strong{display:block;font-size:13px}.action-card small{display:block;color:#999;font-size:10px;margin-top:5px;line-height:1.4}
+.tabs{position:relative;isolation:isolate;overflow:hidden;background:rgba(20,20,20,.86);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-radius:16px;padding:4px}.tabs:before{content:"";position:absolute;z-index:-1;left:4px;top:4px;bottom:4px;width:calc(50% - 4px);border:1px solid #ffffff25;border-radius:12px;background:linear-gradient(145deg,#ffffff32,#ffffff0b 55%,#ffffff1b);box-shadow:inset 0 1px #ffffff35,0 3px 12px #0005;transition:transform .42s cubic-bezier(.2,.9,.2,1)}.tabs.mine-selected:before{transform:translateX(100%)}.tab{position:relative;z-index:1;transition:color .2s,transform .25s}.tab.active{background:transparent;color:#fff;box-shadow:inset 0 1px #ffffff15}.tab:active{transform:scale(.97)}
+.plan{transition:transform .2s,border-color .2s}.plan-name{font-size:15px}.product-details{border-top:1px solid #303030;margin-top:14px;padding-top:14px}.detail-line{display:flex;justify-content:space-between;gap:12px;font-size:11px;padding:7px 0;color:#aaa}.detail-line strong{color:#eee;font-weight:650;text-align:right}.plan .sub{margin-bottom:13px}.buy-btn{width:100%;padding:13px;border-radius:12px;border:1px solid #f5f5f5;background:linear-gradient(135deg,#f2f2f2,#a6a6a6);color:#111;font-size:11px;font-weight:850;cursor:pointer}.buy-btn:active{transform:scale(.99)}
+@media(max-width:360px){.app{padding-left:13px;padding-right:13px}.stat{padding:12px}.stat .value{font-size:19px}.plan-grid{gap:5px}.metric{padding:9px 6px}.metric strong{font-size:11px}}
+
+.auth-actions{display:flex;gap:8px;align-items:center}
+.auth-top-btn{border:1px solid #444;border-radius:12px;background:#171717;color:#f4f4f4;padding:10px 11px;font-size:10px;font-weight:750}
+.auth-modal{position:fixed;inset:0;z-index:100;display:none;align-items:center;justify-content:center;padding:18px;background:#000b;backdrop-filter:blur(10px)}
+.auth-modal.open{display:flex}.auth-box{width:min(100%,390px);border:1px solid #444;border-radius:22px;background:linear-gradient(145deg,#202020,#0c0c0c);padding:22px;box-shadow:0 20px 70px #000b}
+.auth-box h2{margin:0 0 8px;font-size:22px}.auth-box p{color:#aaa;font-size:12px;line-height:1.6}
+.auth-google{width:100%;padding:13px;border-radius:13px;border:1px solid #ddd;background:#f5f5f5;color:#111;font-weight:800;font-size:12px}
+.auth-close{float:right;border:1px solid #444;border-radius:10px;background:#151515;color:#eee;padding:6px 10px}
+.auth-status{font-size:11px;color:#aaa;margin-top:12px;overflow-wrap:anywhere}
+@media(max-width:360px){.auth-top-btn{padding:9px 7px;font-size:9px}.brand{font-size:16px}}
+
+
+/* NOIR premium liquid-glass finish */
+.auth-top-btn,.iconbtn,.primary,.buy-btn,.secondary,.small-btn,.tab,.action-card,.auth-google,.auth-close,.team-tab,.vip-cta{position:relative;overflow:hidden;border:1px solid rgba(255,255,255,.23)!important;background:linear-gradient(145deg,rgba(255,255,255,.15),rgba(255,255,255,.035) 48%,rgba(255,255,255,.09))!important;color:#f5f5f5!important;box-shadow:inset 0 1px rgba(255,255,255,.2),0 8px 24px rgba(0,0,0,.25);backdrop-filter:blur(18px) saturate(140%);-webkit-backdrop-filter:blur(18px) saturate(140%);transition:transform .22s ease,border-color .22s ease,box-shadow .22s ease}
+.auth-top-btn:before,.iconbtn:before,.primary:before,.buy-btn:before,.secondary:before,.small-btn:before,.action-card:before,.auth-google:before,.vip-cta:before{content:"";position:absolute;top:0;left:-130%;width:75%;height:100%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.18),transparent);transform:skewX(-20deg);transition:left .65s ease;pointer-events:none}
+.auth-top-btn:hover:before,.iconbtn:hover:before,.primary:hover:before,.buy-btn:hover:before,.secondary:hover:before,.small-btn:hover:before,.action-card:hover:before,.auth-google:hover:before,.vip-cta:hover:before{left:150%}
+.auth-top-btn:hover,.iconbtn:hover,.primary:hover,.buy-btn:hover,.secondary:hover,.small-btn:hover,.action-card:hover,.auth-google:hover,.vip-cta:hover{border-color:rgba(255,255,255,.5)!important;box-shadow:inset 0 1px rgba(255,255,255,.3),0 0 22px rgba(220,220,220,.09),0 8px 25px #0005}
+.primary{font-weight:800;color:#fff!important;padding:12px 17px}.tab.active{background:linear-gradient(145deg,rgba(255,255,255,.26),rgba(255,255,255,.07))!important;color:#fff!important;border:1px solid rgba(255,255,255,.38)!important;box-shadow:inset 0 1px #ffffff35,0 0 18px #ffffff0b}
+.stat{background:linear-gradient(145deg,rgba(255,255,255,.075),rgba(255,255,255,.018) 55%,rgba(255,255,255,.055));border-color:#ffffff24;box-shadow:inset 0 1px #ffffff12,0 8px 26px #0003}.stat .value{ text-shadow:0 0 15px #ffffff13 }
+.plan{background:linear-gradient(145deg,rgba(255,255,255,.09),rgba(255,255,255,.025) 55%,rgba(255,255,255,.055));border-color:#ffffff25;box-shadow:inset 0 1px #ffffff12,0 12px 32px #0004}.buy-btn{width:100%;padding:13px;border-radius:14px;font-size:12px;font-weight:800}.auth-modal{position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;padding:22px;background:rgba(0,0,0,.66);backdrop-filter:blur(13px);-webkit-backdrop-filter:blur(13px)}.auth-modal.open{display:flex}.auth-box{position:relative;width:min(100%,460px);border:1px solid #ffffff35;border-radius:25px;padding:25px 20px;background:linear-gradient(145deg,rgba(34,34,34,.94),rgba(12,12,12,.94));box-shadow:inset 0 1px #ffffff22,0 20px 70px #000b}.auth-box h2{font-size:24px;margin:8px 0}.auth-box p{font-size:12px;color:#aaa;line-height:1.6}.auth-close{position:absolute;right:13px;top:13px;width:38px;height:38px;border-radius:12px}.auth-google{width:100%;padding:14px;border-radius:14px;font-weight:800;margin-top:8px}.auth-status{font-size:11px;color:#aaa;line-height:1.5;margin-top:12px;overflow-wrap:anywhere}
+.referral-preview{display:none;margin:14px 0 10px;padding:13px;border:1px solid #55d98a66;border-radius:15px;background:linear-gradient(145deg,#1d5c382b,#ffffff04);box-shadow:inset 0 1px #ffffff0c}
+.referral-preview.visible{display:block}
+.referral-preview .ref-title{font-size:10px;font-weight:850;letter-spacing:.13em;color:#9bf0b9}
+.referral-preview .ref-id{font-size:12px;font-weight:800;letter-spacing:.06em;margin-top:8px;overflow-wrap:anywhere;color:#eee}
+.referral-preview .ref-message{font-size:10px;line-height:1.5;color:#b7e9c6;margin-top:6px}
+.referral-preview.success{border-color:#55d98a66;background:linear-gradient(145deg,#1d5c382b,#ffffff04)}
+.referral-preview.success .ref-title,.referral-preview.success .ref-message{color:#9bf0b9}
+.referral-preview.error{border-color:#ff888855}
+.referral-preview.error .ref-title,.referral-preview.error .ref-message{color:#ffb4b4}
+.vip-card{position:relative;overflow:hidden;padding:21px;border-radius:24px;border:1px solid transparent;background:linear-gradient(140deg,#181818,#080808 60%,#1b1b1b) padding-box;box-shadow:inset 0 1px #ffffff25,0 0 0 1px #ffffff08,0 0 22px #ffffff12,0 15px 40px #0008;isolation:isolate}.vip-card:before{content:"";position:absolute;inset:0;padding:1.5px;border-radius:24px;background:conic-gradient(from 0deg,transparent 0deg,transparent 255deg,#777 285deg,#fff 310deg,#b8b8b8 325deg,transparent 350deg,transparent 360deg);-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:vipSweep 3.2s linear infinite;pointer-events:none;z-index:3}.vip-card:after{content:"";position:absolute;inset:0;border-radius:23px;background:radial-gradient(ellipse at 50% 0%,#ffffff08,transparent 65%);z-index:-1;pointer-events:none}.vip-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.vip-brand{display:flex;align-items:center;gap:10px;font-weight:850;letter-spacing:.2em}.vip-logo{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;font-size:23px;color:#111;background:linear-gradient(145deg,#fff,#b8b8b8 48%,#565656);box-shadow:0 0 20px #ffffff25,inset 0 1px #fff}.vip-live{border:1px solid #ffffff55;border-radius:30px;padding:7px 10px;font-size:9px;letter-spacing:.12em;color:#eee;background:#ffffff0b}.vip-card h2{font-size:25px;letter-spacing:-.05em;margin:19px 0 7px}.vip-card p{font-size:12px;color:#aaa;line-height:1.6;margin:0 0 17px}.vip-cta{padding:11px 14px;border-radius:13px;font-weight:750;font-size:11px}.vip-status{font-size:10px;letter-spacing:.14em;color:#e2e2e2;margin-top:13px}.commission-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:14px}.commission-item{border:1px solid #ffffff25;border-radius:16px;padding:14px 9px;background:linear-gradient(145deg,#ffffff13,#ffffff03);box-shadow:inset 0 1px #ffffff12}.commission-item strong{display:block;font-size:22px;letter-spacing:-.04em}.commission-item span{display:block;color:#aaa;font-size:10px;margin-top:6px}.team-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:14px}.team-tab{padding:11px 5px;border-radius:13px;font-size:10px}.team-tab.active{border-color:#ffffff55!important;background:linear-gradient(145deg,#ffffff26,#ffffff08)!important}.team-panel{margin-top:10px;padding:16px;border:1px solid #ffffff20;border-radius:16px;background:#ffffff06;color:#aaa;font-size:11px;line-height:1.6}.public-id{font-size:11px;color:#aaa;margin-top:7px}.public-id strong{color:#f1f1f1;letter-spacing:.08em}.profile-email{display:none!important}.footer-note{overflow-wrap:anywhere}@keyframes vipSweep{to{transform:rotate(360deg)}}
+/* Keep the Available/My Products control clean, with no divider seam */
+.tabs{position:relative;gap:0;padding:4px;background:rgba(255,255,255,.045);border:1px solid #ffffff1d;box-shadow:inset 0 1px #ffffff0b;overflow:hidden}.tabs .tab{border:0!important;box-shadow:none!important;background:transparent!important;border-radius:11px!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;color:#aaa!important}.tabs .tab.active{background:linear-gradient(145deg,rgba(255,255,255,.22),rgba(255,255,255,.07))!important;color:#f5f5f5!important;border:1px solid rgba(255,255,255,.22)!important;box-shadow:inset 0 1px #ffffff25,0 0 14px #ffffff08!important}
+.public-id-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.copy-id-btn{border:1px solid #ffffff28;border-radius:9px;padding:5px 8px;background:linear-gradient(145deg,#ffffff18,#ffffff05);color:#eee;font-size:10px;backdrop-filter:blur(10px)}@media(prefers-reduced-motion:reduce){.vip-card:before{animation:none}*{scroll-behavior:auto!important;transition:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+<header class="topbar"><div class="brand"><div class="brandmark">N</div><span>NOIR</span></div><div class="top-actions auth-actions"><button class="auth-top-btn auth-guest" id="auth-signin" type="button" onclick="openAuth()">Sign In</button><button class="iconbtn" aria-label="Profile" onclick="go('account')">◉</button></div></header>
+<main>
+<section id="home" class="page active">
+ <div class="hero"><div class="eyebrow">A more considered experience</div><h1>Discover NOIR Projects.</h1><p>Explore project details and manage your account from one premium dashboard.</p><button class="primary" onclick="go('product')">Explore projects&nbsp; ↗</button></div>
+ <div class="stats">
+  <div class="stat"><div class="label">Total Balance</div><div class="value">—</div><div class="note">Available balance · awaiting account backend</div></div>
+  <div class="stat"><div class="label">Total Invested</div><div class="value">—</div><div class="note">Based on confirmed purchases</div></div>
+  <div class="stat"><div class="label">Total Profit</div><div class="value">—</div><div class="note">Product profit recorded by backend</div></div>
+  <div class="stat"><div class="label">Total Withdrawal</div><div class="value">—</div><div class="note">Based on completed withdrawals</div></div>
+ </div>
+ <div class="notice"><strong>Account data not connected yet.</strong> These values will display verified account records after backend integration. No estimated balance or profit is shown.</div>
+ <div class="section-head"><h2>NOIR VIP Project</h2><button class="textbtn" onclick="openAvailableProjects()">View all&nbsp; ↗</button></div>
+ <article class="vip-card"><div class="vip-head"><div class="vip-brand"><span class="vip-logo">N</span><span>NOIR</span></div><span class="vip-live">VIP ACCESS</span></div><h2>NOIR VIP Project</h2><p>An exclusive NOIR experience is on its way. Project details will appear here after the launch is officially configured.</p><button class="vip-cta" onclick="showVipInfo()">Explore VIP&nbsp; ↗</button><div class="vip-status">✦ &nbsp; COMING SOON &nbsp; ✦</div></article>
+
+ <div class="footer-note">NOIR · Account figures will appear when verified account records are connected.</div>
+</section>
+<section id="product" class="page">
+ <div class="eyebrow">Discover</div><h1 style="font-size:29px;letter-spacing:-.05em;margin:9px 0 0">Projects</h1><p style="color:#999;font-size:12px;line-height:1.6;margin:8px 0">Explore NOIR projects and review their details before purchase.</p>
+ <div class="tabs"><button class="tab active" data-tab="available" onclick="setTab('available',this)">Available</button><button class="tab" data-tab="mine" onclick="setTab('mine',this)">My Products <span id="mine-count">(0)</span></button></div>
+ <div id="available-pane"><article class="vip-card available-vip"><div class="vip-head"><div class="vip-brand"><span class="vip-logo">N</span><span>NOIR</span></div><span class="vip-live">VIP PROJECT</span></div><h2>NOIR VIP Project</h2><p>Premium project experience. Launch information will be published here when available.</p><button class="vip-cta" onclick="showVipInfo()">View details&nbsp; ↗</button><div class="vip-status">✦ &nbsp; COMING SOON &nbsp; ✦</div></article><div class="searchbox"><input id="search" placeholder="Search projects…" oninput="renderPlans()" aria-label="Search projects"></div><div class="cards" id="plans-list"></div></div>
+ <div id="mine-pane" class="hidden"><div class="cards" id="mine-list"></div></div>
+ <div class="notice">Purchase and payment processing are not connected yet. Buy Now is intentionally inactive until the payment setup is ready.</div>
+</section>
+<section id="refer" class="page">
+ <div class="eyebrow">Community</div><h1 style="font-size:29px;letter-spacing:-.05em;margin:9px 0 0">Refer &amp; Earn</h1><p style="color:#999;font-size:12px;line-height:1.6;margin:8px 0">Referral programme preview. Tracking and payouts will activate only after secure backend setup.</p>
+ <div class="ref-card"><div class="eyebrow">Referral programme</div><h2>Invite friends to NOIR.</h2><p>Your referral link preview uses a public NOIR ID derived from your Firebase account. This is a display preview; the ID and referral relationship must be persisted and verified server-side before launch. Referral attribution and commissions are not active until backend verification is implemented.</p><div class="code-row"><div class="code" id="ref-link">Sign in to view your referral link</div><button class="small-btn" id="copy-ref-btn" onclick="copyReferral()">Copy link</button></div>
+ <div class="eyebrow" style="margin-top:22px">Commission structure</div><div class="commission-grid"><div class="commission-item"><strong>25%</strong><span>Level 1 · Direct</span></div><div class="commission-item"><strong>3%</strong><span>Level 2 · Team</span></div><div class="commission-item"><strong>1%</strong><span>Level 3 · Extended</span></div></div>
+ <p style="font-size:10px">Displayed structure only. Eligible transaction definitions, terms, compliance and server-side validation must be completed before any commission can be earned or paid.</p></div>
+ <div class="section-head"><h2>Your Team</h2><span class="tag" id="team-status-tag">CONNECTING</span></div><div class="team-tabs"><button class="team-tab active" onclick="setTeamLevel(1,this)">Level 1</button><button class="team-tab" onclick="setTeamLevel(2,this)">Level 2</button><button class="team-tab" onclick="setTeamLevel(3,this)">Level 3</button></div><div class="team-panel" id="team-panel">Sign in to load your verified referral team. No email addresses are shown here.<br><br>Total members: —</div>
+ <div class="notice"><strong>Preview only.</strong> Referral tracking, team counts and commission payouts are not connected. No earnings are being recorded or promised.</div>
+ </section>
+<section id="account" class="page">
+ <div class="eyebrow">Your space</div><h1 style="font-size:29px;letter-spacing:-.05em;margin:9px 0 0">Account</h1>
+ <div class="profile"><div class="avatar">N</div><div><h3 id="account-name">NOIR Member</h3><p id="account-email" class="profile-email">Email is private</p><div class="public-id public-id-row">NOIR ID: <strong id="public-user-id">Sign in to generate</strong><button type="button" class="copy-id-btn" onclick="copyPublicId()">Copy</button></div></div><span class="pill" style="margin-left:auto">ACCOUNT</span></div>
+ <div id="server-verification" role="status" aria-live="polite" style="margin-top:10px;padding:10px 12px;border:1px solid #ffffff20;border-radius:12px;background:#ffffff06;color:#aaa;font-size:10px;line-height:1.5">Server verification: waiting for sign-in check…</div><div class="section-head"><h2>Wallet</h2><span class="tag">Not connected</span></div>
+ <div class="account-actions"><button class="action-card" type="button" onclick=""><span class="action-icon">＋</span><strong>Deposit</strong><small>Add funds · payment setup pending</small></button><button class="action-card" type="button" onclick=""><span class="action-icon">↗</span><strong>Withdraw</strong><small>Request payout · setup pending</small></button></div>
+ <div class="section-head"><h2>Overview</h2></div>
+ <div class="list"><button class="listrow" style="width:100%;text-align:left;background:transparent;border-top:0;border-left:0;border-right:0" onclick="go('product');setTab('mine',document.querySelector('[data-tab=mine]'))"><div>My Products<span>View products purchased after checkout is enabled</span></div><b>›</b></button><button class="listrow" style="width:100%;text-align:left;background:transparent;border:0" onclick="toast('Transaction history will be available after backend setup')"><div>Transaction History<span>Available after payment integration</span></div><b>›</b></button><button class="listrow" style="width:100%;text-align:left;background:transparent;border:0" onclick="go('refer')"><div>Referral activity<span>Referral programme setup pending</span></div><b>›</b></button></div>
+ <div class="section-head"><h2>Help &amp; information</h2></div><div class="list"><div class="listrow"><div>Account security<span>Sign-in and security features are not connected yet</span></div><span class="pill">COMING SOON</span></div><div class="listrow"><div>Support<span>Connect a real support channel before launch</span></div><b>›</b></div><div class="listrow"><div>Terms &amp; disclosures<span>Demo UI; no live financial services</span></div><span class="pill">PREVIEW</span></div></div>
+ <div class="footer-note">Account, payment, transaction and payout services will be connected after backend setup.</div>
+</section>
+</main>
+</div>
+<div class="nav-wrap"><nav class="nav" id="nav" aria-label="Main navigation"><div class="nav-indicator" id="indicator"></div><button class="active" data-page="home" onclick="go('home',this)"><span class="ico">⌂</span><span>Home</span></button><button data-page="product" onclick="go('product',this)"><span class="ico">◇</span><span>Projects</span></button><button data-page="refer" onclick="go('refer',this)"><span class="ico">↗</span><span>Refer &amp; Earn</span></button><button data-page="account" onclick="go('account',this)"><span class="ico">◉</span><span>Account</span></button></nav></div>
+<div class="toast" id="toast"></div>
+
+<div class="auth-modal" id="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title" onclick="if(event.target===this)closeAuth()">
+  <div class="auth-box"><button class="auth-close" type="button" onclick="closeAuth()" aria-label="Close">✕</button>
+    <div class="eyebrow">NOIR ACCOUNT</div><h2 id="auth-title">Welcome to NOIR</h2>
+    <p>Sign in securely with your Google account using Firebase Authentication.</p>
+    <div class="referral-preview" id="referral-preview" role="status" aria-live="polite">
+      <div class="ref-title" id="referral-preview-title">REFERRAL LINK DETECTED</div>
+      <div class="ref-id" id="referral-preview-id"></div>
+      <div class="ref-message" id="referral-preview-message">We’ll verify this referral after you continue with Google.</div>
+    </div>
+    <button class="auth-google" id="google-signin" type="button">Continue with Google</button>
+    <div class="auth-status" id="auth-status" aria-live="polite">No account is signed in.</div>
+  </div>
+</div>
+
+<script>
+const planData=[
+ {id:'project-1',name:'NOIR',price:6,days:60,tag:'Project 1',description:'Project details and purchase flow will be configured before checkout is enabled.'},
+ {id:'project-2',name:'NOIR',price:12,days:60,tag:'Project 2',description:'Project details and purchase flow will be configured before checkout is enabled.'},
+ {id:'project-3',name:'NOIR',price:24,days:60,tag:'Project 3',description:'Project details and purchase flow will be configured before checkout is enabled.'}
+];
+let purchased=[];
+function money(n){return '$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:2})}
+function planCard(p,owned=false){return `<article class="plan"><div class="plan-top"><div><div class="eyebrow">${owned?'My Product':'NOIR Collection'}</div><div class="plan-name" style="margin-top:7px">${p.name}</div></div><span class="tag">${p.tag}</span></div><div class="price">${money(p.price)} <small>product price</small></div><div class="product-details"><div class="detail-line"><span>Duration</span><strong>${p.days} days</strong></div><div class="detail-line"><span>Profit details</span><strong>Shown after verified records are available</strong></div><div class="detail-line"><span>Purchase status</span><strong>${owned?'Purchased':'Not purchased'}</strong></div></div><div class="sub">${p.description}</div>${owned?'':'<button class="buy-btn" type="button" onclick="">Buy Now&nbsp; ↗</button>'}</article>`}
+function renderPlans(){let q=(document.getElementById('search')?.value||'').toLowerCase();let list=planData.map((p,i)=>({...p,searchName:'NOIR Project '+(i+1)})).filter(p=>p.searchName.toLowerCase().includes(q)||p.name.toLowerCase().includes(q));document.getElementById('plans-list').innerHTML=list.length?list.map(p=>planCard(p)).join(''):'<div class="empty">No projects match your search.</div>';document.querySelector('.available-vip')?.classList.toggle('hidden',q.length>0 && !'noir vip project vip project'.includes(q));renderMine()}
+function renderMine(){document.getElementById('mine-count').textContent='('+purchased.length+')';document.getElementById('mine-list').innerHTML=purchased.length?purchased.map(p=>planCard(p,true)).join(''):'<div class="empty"><div class="symbol">◇</div>No purchased products yet.<br>Purchased products will appear here after checkout is enabled.</div>'}
+function setTab(which,btn){document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===btn));document.querySelector('.tabs').classList.toggle('mine-selected',which==='mine');document.getElementById('available-pane').classList.toggle('hidden',which!=='available');document.getElementById('mine-pane').classList.toggle('hidden',which!=='mine');if(which==='mine')renderMine()}
+function openAvailableProjects(){go('product');setTab('available',document.querySelector('[data-tab=available]'));document.getElementById('search').value='';renderPlans()}
+function go(page,btn){document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id===page));let b=btn||document.querySelector('.nav button[data-page="'+page+'"]');document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('active',x===b));let idx=[...document.querySelectorAll('.nav button')].indexOf(b);if(idx>=0){document.getElementById('indicator').style.transform='translateX('+idx*100+'%)';document.getElementById('indicator').style.borderRadius=idx===1?'15px 20px 15px 20px':'17px'}if(page==='product')renderPlans();window.scrollTo({top:0,behavior:'smooth'})}
+let toastTimer;function toast(msg){let el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),2100)}
+function showVipInfo(){toast('NOIR VIP Project — Coming Soon')}
+let noirTeamData={1:[],2:[],3:[]};let noirTeamLoaded=false;let noirTeamLoading=false;
+async function loadTeamData(){
+  if(noirTeamLoading)return;
+  noirTeamLoading=true;
+  const panel=document.getElementById('team-panel');
+  const tag=document.getElementById('team-status-tag');
+  try{
+    const user=window.noirCurrentUser;
+    if(!user){panel.innerHTML='Sign in to load your verified referral team.<br><br>Total members: —';tag.textContent='SIGN IN';return;}
+    const token=await user.getIdToken();
+    const response=await fetch('/api/team',{method:'GET',headers:{Authorization:`Bearer ${token}`},cache:'no-store'});
+    const result=await response.json();
+    if(!response.ok)throw new Error(result.error||`Team request failed (${response.status})`);
+    noirTeamData={1:result.level1||[],2:result.level2||[],3:result.level3||[]};
+    noirTeamLoaded=true;tag.textContent='VERIFIED';
+    const active=document.querySelector('.team-tab.active')||document.querySelector('.team-tab');
+    const level=active?Number(active.textContent.match(/\d+/)?.[0]||1):1;
+    setTeamLevel(level,active);
+  }catch(err){
+    console.error('NOIR team load failed:',err);
+    tag.textContent='UNAVAILABLE';
+    panel.innerHTML='Team data could not be loaded. Check the /api/team endpoint and Vercel function logs.<br><br>Total members: —';
+  }finally{noirTeamLoading=false;}
+}
+function setTeamLevel(level,btn){
+  document.querySelectorAll('.team-tab').forEach(x=>x.classList.toggle('active',x===btn));
+  const labels={1:'Level 1 — Direct referrals',2:'Level 2 — Referrals invited by your Level 1 team',3:'Level 3 — Referrals invited by your Level 2 team'};
+  const members=noirTeamData[level]||[];
+  const panel=document.getElementById('team-panel');
+  if(!noirTeamLoaded){panel.innerHTML=labels[level]+'<br>Sign in to load verified referral records.<br><br>Total members: —';return;}
+  const rows=members.map(m=>`<div style="display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid #ffffff12"><span style="color:#eee">${escapeTeamText(m.noirId||'NOIR Member')}<small style="display:block;color:#888;margin-top:4px">Joined ${escapeTeamText(m.createdAtText||'date unavailable')}</small></span><span style="color:#9bf0b9;font-size:10px;white-space:nowrap">✓ Verified</span></div>`).join('');
+  panel.innerHTML=labels[level]+'<br>'+(rows||'No verified members found at this level.')+'<br><br>Total members: '+members.length;
+}
+function escapeTeamText(value){return String(value).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));}
+function setReferralPreview(uid, savedNoirId){
+  const id = typeof savedNoirId === 'string' && /^NR-[A-Z0-9]+$/i.test(savedNoirId)
+    ? savedNoirId.toUpperCase()
+    : null;
+  const idEl = document.getElementById('public-user-id');
+  const linkEl = document.getElementById('ref-link');
+  if (!id) {
+    idEl.textContent = 'Profile ID sync pending';
+    linkEl.textContent = 'Referral link available after profile sync';
+    return;
+  }
+  idEl.textContent = id;
+  const link = location.origin + '/?ref=' + encodeURIComponent(id);
+  linkEl.textContent = link;
+}
+async function copyPublicId(){const value=document.getElementById('public-user-id').textContent;if(!value||value.startsWith('Sign in')){toast('Sign in to view your NOIR ID');return}try{await navigator.clipboard.writeText(value);toast('NOIR ID copied')}catch(e){toast('Copy not supported; select the ID manually')}}
+async function copyReferral(){const value=document.getElementById('ref-link').textContent;if(!value||value.startsWith('Sign in')){toast('Sign in to view your referral link');return}try{await navigator.clipboard.writeText(value);toast('Referral link copied — tracking activates after backend setup')}catch(e){toast('Select and copy the referral link manually')}}
+renderPlans();renderMine();
+</script>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut, getAdditionalUserInfo } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+const firebaseConfig = {
+  apiKey: "AIzaSyCc8uY2I8oPXCFz4ivYtQLnRS9MWHOvWXg",
+  authDomain: "noir-7a864.firebaseapp.com",
+  databaseURL: "https://noir-7a864-default-rtdb.firebaseio.com",
+  projectId: "noir-7a864",
+  storageBucket: "noir-7a864.firebasestorage.app",
+  messagingSenderId: "598173056597",
+  appId: "1:598173056597:web:34908e4ab7f9711c321edc",
+  measurementId: "G-VC0V3N1XT0"
+};
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const provider = new GoogleAuthProvider();
+const statusEl = document.getElementById("auth-status");
+const signInBtn = document.getElementById("google-signin");
+const referralCard = document.getElementById("referral-preview");
+const referralTitle = document.getElementById("referral-preview-title");
+const referralIdEl = document.getElementById("referral-preview-id");
+const referralMessage = document.getElementById("referral-preview-message");
+
+function readReferralFromUrl() {
+  const raw = new URLSearchParams(window.location.search).get("ref");
+  if (!raw) return null;
+  const id = raw.trim().toUpperCase();
+  return /^NR-[A-Z0-9]{6,20}$/.test(id) ? id : null;
+}
+const incomingReferral = readReferralFromUrl();
+if (incomingReferral) sessionStorage.setItem("noir_pending_referral", incomingReferral);
+
+function pendingReferral() {
+  const value = sessionStorage.getItem("noir_pending_referral") || "";
+  return /^NR-[A-Z0-9]{6,20}$/.test(value) ? value : null;
+}
+function showReferralCard(state, id, message) {
+  if (!id) {
+    referralCard.classList.remove("visible", "success", "error");
+    return;
+  }
+  referralCard.classList.add("visible");
+  referralCard.classList.toggle("success", state === "success");
+  referralCard.classList.toggle("error", state === "error");
+  referralTitle.textContent = state === "success" ? "✓ REFERRAL APPLIED" :
+    state === "error" ? "REFERRAL NOT APPLIED" : "REFERRAL LINK DETECTED";
+  referralIdEl.textContent = "Referrer NOIR ID: " + id;
+  referralMessage.textContent = message;
+}
+window.openAuth = () => {
+  const ref = pendingReferral();
+  if (ref) showReferralCard("pending", ref, "We’ll verify this referral after you continue with Google.");
+  else showReferralCard(null, null, "");
+  document.getElementById("auth-modal").classList.add("open");
+};
+window.closeAuth = () => document.getElementById("auth-modal").classList.remove("open");
+
+signInBtn.addEventListener("click", async () => {
+  signInBtn.disabled = true;
+  statusEl.textContent = "Opening Google sign-in…";
+  try {
+    const credential = await signInWithPopup(auth, provider);
+    const details = getAdditionalUserInfo(credential);
+    const isNewAccount = details?.isNewUser === true;
+    statusEl.textContent = isNewAccount ? "NOIR account created successfully." : "Google sign-in successful.";
+    window.closeAuth();
+    window.toast(isNewAccount ? "NOIR account created successfully" : "Signed in successfully");
+  } catch (err) {
+    console.error("Firebase sign-in error:", err);
+    statusEl.textContent = "Sign-in failed: " + (err.code || "unknown error") + ". Check Firebase Authorized Domains and try again.";
+  } finally {
+    signInBtn.disabled = false;
+  }
+});
+
+onAuthStateChanged(auth, async user => {
+  const nameEl = document.getElementById("account-name");
+  const emailEl = document.getElementById("account-email");
+  if (user) {
+    let verifiedNoirId = null;
+    let profileOk = false;
+    try {
+      const idToken = await user.getIdToken();
+      const response = await fetch("/api/profile", {
+        method: "GET",
+        headers: { Authorization: `Bearer ${idToken}` },
+        cache: "no-store"
+      });
+      const profile = await response.json();
+      if (!response.ok) throw new Error(profile.error || `Profile verification failed (${response.status})`);
+      verifiedNoirId = profile.noirId || null;
+      profileOk = Boolean(verifiedNoirId);
+      console.info("NOIR profile API verified", { uid: profile.uid, hasNoirId: profileOk });
+      statusEl.textContent = "Signed in securely; server verification successful.";
+      const verificationEl = document.getElementById("server-verification");
+      if (verificationEl) {
+        verificationEl.textContent = "Server verification: SUCCESS — Firebase token accepted by /api/profile.";
+        verificationEl.style.color = "#c6f6d5";
+        verificationEl.style.borderColor = "#c6f6d555";
+      }
+
+      const referrerNoirId = pendingReferral();
+      if (referrerNoirId && profileOk) {
+        if (referrerNoirId === verifiedNoirId) {
+          showReferralCard("error", referrerNoirId, "You cannot use your own referral link.");
+        } else {
+          const referralResponse = await fetch("/api/referral", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${idToken}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ referrerNoirId }),
+            cache: "no-store"
+          });
+          const referralResult = await referralResponse.json();
+          if (referralResponse.ok && referralResult.success) {
+            showReferralCard("success", referrerNoirId, "Referral verified and saved to your NOIR account.");
+            sessionStorage.removeItem("noir_pending_referral");
+          } else if (referralResponse.status === 409) {
+            showReferralCard("error", referrerNoirId, "A referral is already assigned to this account. It cannot be changed.");
+            sessionStorage.removeItem("noir_pending_referral");
+          } else {
+            showReferralCard("error", referrerNoirId, referralResult.error || "Referral could not be verified. No referral was applied.");
+          }
+        }
+      }
+    } catch (error) {
+      console.error("NOIR profile API verification failed:", error);
+      statusEl.textContent = "Signed in, but server verification failed. Check Vercel Firebase Admin environment variables.";
+      const verificationEl = document.getElementById("server-verification");
+      if (verificationEl) {
+        verificationEl.textContent = "Server verification: FAILED — check Vercel function logs and Firebase Admin environment variables.";
+        verificationEl.style.color = "#ffb4b4";
+        verificationEl.style.borderColor = "#ffb4b455";
+      }
+      window.toast("Login ok; server verification failed");
+    }
+    nameEl.textContent = user.displayName || "NOIR Member";
+    emailEl.textContent = "Email is private";
+    setReferralPreview(user.uid, verifiedNoirId);
+    loadTeamData();
+    document.querySelectorAll(".auth-guest").forEach(el => el.classList.add("hidden"));
+    document.getElementById("auth-signout")?.remove();
+    const out = document.createElement("button");
+    out.id = "auth-signout"; out.className = "auth-top-btn"; out.type = "button"; out.textContent = "Sign Out";
+    out.addEventListener("click", async () => { await signOut(auth); window.toast("Signed out"); });
+    document.querySelector(".auth-actions").prepend(out);
+  } else {
+    nameEl.textContent = "NOIR Member";
+    emailEl.textContent = "Email is private";
+    document.getElementById("public-user-id").textContent = "Sign in to generate";
+    document.getElementById("ref-link").textContent = "Sign in to view your referral link";
+    const verificationEl = document.getElementById("server-verification");
+    if (verificationEl) {
+      verificationEl.textContent = "Server verification: sign in to run the check.";
+      verificationEl.style.color = "#aaa";
+      verificationEl.style.borderColor = "#ffffff20";
+    }
+    document.querySelectorAll(".auth-guest").forEach(el => el.classList.remove("hidden"));
+    statusEl.textContent = "No account is signed in.";
+    document.getElementById("auth-signout")?.remove();
+  }
+});
+</script>
+
+</body></html>
