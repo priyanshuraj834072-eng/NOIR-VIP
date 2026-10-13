@@ -1,3 +1,8 @@
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
 const crypto = require("node:crypto");
 const { db } = require("./_auth");
 
