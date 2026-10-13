@@ -8,9 +8,7 @@ const DATABASE_URL =
   'https://noir-7a864-default-rtdb.firebaseio.com';
 
 function adminApp() {
-  if (getApps().length) {
-    return getApps()[0];
-  }
+  if (getApps().length) return getApps()[0];
 
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
@@ -101,9 +99,7 @@ export default async function handler(req, res) {
       const noirId = await reserveNoirId(db, decoded.uid);
 
       const result = await profileRef.transaction(current => {
-        if (current && current.noirId) {
-          return current;
-        }
+        if (current && current.noirId) return current;
 
         return {
           ...(current || {}),
