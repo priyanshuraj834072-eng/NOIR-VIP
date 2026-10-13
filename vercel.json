@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/profile.js": {
+      "maxDuration": 10
+    }
+  }
+}
