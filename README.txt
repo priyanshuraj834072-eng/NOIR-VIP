@@ -1,16 +1,7 @@
-NOIR Vercel starter
+NOIR custom mobile + password auth bundle
 
-Files:
-- index.html: existing NOIR design with Firebase Google sign-in added
-- api/profile.js: backend endpoint verifying Firebase ID tokens
-- database.rules.json: locked rules; no client reads/writes
-- package.json and vercel.json
+Files: index.html and api/*.js plus package.json/vercel.json.
 
-Before deployment:
-1. Firebase Console > Authentication > Settings > Authorized domains: add the final Vercel domain (for example noir-vip.vercel.app).
-2. In Vercel Project Settings > Environment Variables, set FIREBASE_SERVICE_ACCOUNT_JSON to the JSON service-account credential for the NOIR Firebase project. Obtain it only from Google Cloud/Firebase IAM. NEVER put this credential in index.html, GitHub, or chat.
-3. Deploy and test Google sign-in.
-4. The profile API expects Authorization: Bearer <Firebase ID token>.
-5. Keep database rules locked until a specific secure data access design is implemented and tested.
+Important: This replaces the Firebase Auth token flow with custom sessions stored in Realtime Database. Keep database rules closed to client access. Required Vercel environment variables: FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, optional FIREBASE_DATABASE_URL. Do not expose the private key.
 
-This starter does not implement deposits, withdrawals, balances, profit, or payment processing. Do not use it for real-money activity until a genuine payment provider integration, server-side verification, fraud controls, and legal review are completed.
+Before deploying to production, test register/login/logout/profile/referral/team on a staging deployment. This custom flow does not verify ownership of a phone number because there is no OTP. Protect the endpoints with monitoring and consider a stronger abuse-control/rate-limit provider. Existing Google-auth users remain in Firebase but the new HTML does not offer Google login. Existing legacy ID tokens can still be accepted by APIs for migration compatibility.
