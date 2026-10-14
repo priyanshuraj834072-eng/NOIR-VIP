@@ -10,60 +10,170 @@ function detectNetwork(address) {
 }
 
 function addressKey(address, network) {
-  const normalized = network === "BEP20" ? address.toLowerCase() : address;
-  return crypto.createHash("sha256").update(normalized).digest("hex");
+  const normalized =
+    network === "BEP20" ? address.toLowerCase() : address;
+
+  return crypto
+    .createHash("sha256")
+    .update(normalized)
+    .digest("hex");
 }
 
 export default async function handler(req, res) {
+  res.setHeader("Cache-Control", "no-store, private");
+
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ success: false, message: "Method not allowed" });
+    return res.status(405).json({
+      success: false,
+      message: "Method not allowed",
+    });
   }
 
   try {
     const auth = await getAuthenticatedUser(req);
+
     if (!auth || !auth.uid) {
-      return res.status(401).json({ success: false, message: "Please log in first" });
-    }
-
-    const sandbox = process.env.OXAPAY_SANDBOX === "true";
-    const payoutKey = process.env.OXAPAY_PAYOUT_API_KEY;
-    const baseUrl = process.env.SITE_URL || "https://noir-vip.vercel.app";
-
-    // Real payouts need the payout key. Sandbox never sends real money.
-    if (!sandbox && !payoutKey) {
-      return res.status(500).json({ success: false, message: "Payout configuration is missing" });
-    }
-
-    const requested = Number(req.body && req.body.amount);
-    const address = String((req.body && req.body.address) || "").trim();
-
-    if (!Number.isFinite(requested) || requested < 1) {
-      return res.status(400).json({ success: false, message: "Minimum withdrawal is 1 USDT" });
-    }
-    const amount = Math.round(requested * 100) / 100;
-
-    const network = detectNetwork(address);
-    if (!network) {
-      return res.status(400).json({ success: false, message: "Enter a valid USDT address (TRC20 or BEP20)" });
+      return res.status(401).json({
+        success: false,
+        message: "Please log in first",
+      });
     }
 
     const database = db();
 
-    // 1. One address can belong to only one account.
-    const lockRef = database.ref("addressLocks/" + addressKey(address, network));
-    const lock = await lockRef.transaction((current) => {
-      if (current === null) return { uid: auth.uid, network, at: Date.now() };
-      if (current.uid !== auth.uid) return; // belongs to someone else -> abort
-      return current;
-    });
-    if (!lock.committed) {
-      return res.status(409).json({ success: false, message: "This address is already linked to another account" });
+    // Load admin payment settings
+    const settingsSnap = await database
+      .ref("adminSettings/payments")
+      .get();
+
+    const settings = settingsSnap.exists()
+      ? settingsSnap.val()
+      : {
+          withdrawalEnabled: true,
+          minWithdrawal: 1,
+          maxWithdrawal: 100000,
+        };
+
+    // Withdrawal ON/OFF
+    if (settings.withdrawalEnabled !== true) {
+      return res.status(403).json({
+        success: false,
+        message: "Withdrawals are currently disabled",
+      });
     }
 
-    // 2. Save the request
-    const withdrawalId = "WDR_" + randomUUID();
-    const requestRef = database.ref("withdrawalRequests/" + withdrawalId);
+    const minWithdrawal = Number(settings.minWithdrawal);
+    const maxWithdrawal = Number(settings.maxWithdrawal);
+
+    if (
+      !Number.isFinite(minWithdrawal) ||
+      !Number.isFinite(maxWithdrawal) ||
+      minWithdrawal <= 0 ||
+      maxWithdrawal < minWithdrawal
+    ) {
+      return res.status(500).json({
+        success: false,
+        message: "Withdrawal settings are invalid",
+      });
+    }
+
+    const sandbox =
+      process.env.OXAPAY_SANDBOX === "true";
+
+    const payoutKey =
+      process.env.OXAPAY_PAYOUT_API_KEY;
+
+    const baseUrl =
+      process.env.SITE_URL ||
+      "https://noir-vip.vercel.app";
+
+    if (!sandbox && !payoutKey) {
+      return res.status(500).json({
+        success: false,
+        message: "Payout configuration is missing",
+      });
+    }
+
+    const requested = Number(
+      req.body && req.body.amount
+    );
+
+    const address = String(
+      (req.body && req.body.address) || ""
+    ).trim();
+
+    if (!Number.isFinite(requested)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid withdrawal amount",
+      });
+    }
+
+    const amount = Math.round(requested * 100) / 100;
+
+    // Admin-controlled minimum / maximum
+    if (
+      amount < minWithdrawal ||
+      amount > maxWithdrawal
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: `Withdrawal amount must be between ${minWithdrawal} and ${maxWithdrawal} USDT`,
+      });
+    }
+
+    const network = detectNetwork(address);
+
+    if (!network) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Enter a valid USDT address (TRC20 or BEP20)",
+      });
+    }
+
+    // 1. One address can belong to only one account.
+    const lockRef = database.ref(
+      "addressLocks/" +
+        addressKey(address, network)
+    );
+
+    const lock = await lockRef.transaction(
+      (current) => {
+        if (current === null) {
+          return {
+            uid: auth.uid,
+            network,
+            at: Date.now(),
+          };
+        }
+
+        if (current.uid !== auth.uid) {
+          return;
+        }
+
+        return current;
+      }
+    );
+
+    if (!lock.committed) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "This address is already linked to another account",
+      });
+    }
+
+    // 2. Save withdrawal request
+    const withdrawalId =
+      "WDR_" + randomUUID();
+
+    const requestRef = database.ref(
+      "withdrawalRequests/" +
+        withdrawalId
+    );
+
     await requestRef.set({
       withdrawalId,
       uid: auth.uid,
@@ -77,28 +187,70 @@ export default async function handler(req, res) {
     });
 
     // 3. Deduct balance atomically
-    const walletRef = database.ref("wallets/" + auth.uid);
-    const debit = await walletRef.transaction((current) => {
-      if (current === null) return current;
-      const balance = Number(current.balance || 0);
-      const debited = current.debited || {};
-      if (debited[withdrawalId]) return;
-      if (balance < amount) return;
-      current.balance = round(balance - amount);
-      current.debited = { ...debited, [withdrawalId]: { amount, at: Date.now() } };
-      current.updatedAt = Date.now();
-      return current;
-    });
+    const walletRef = database.ref(
+      "wallets/" + auth.uid
+    );
+
+    const debit = await walletRef.transaction(
+      (current) => {
+        if (current === null) return current;
+
+        const balance = Number(
+          current.balance || 0
+        );
+
+        const debited =
+          current.debited || {};
+
+        if (debited[withdrawalId]) return;
+
+        if (balance < amount) return;
+
+        current.balance = round(
+          balance - amount
+        );
+
+        current.debited = {
+          ...debited,
+          [withdrawalId]: {
+            amount,
+            at: Date.now(),
+          },
+        };
+
+        current.updatedAt = Date.now();
+
+        return current;
+      }
+    );
 
     const after = debit.snapshot.val();
-    if (!debit.committed || !after || !after.debited || !after.debited[withdrawalId]) {
-      await requestRef.update({ status: "rejected", reason: "insufficient_balance", updatedAt: Date.now() });
-      return res.status(400).json({ success: false, message: "Insufficient balance" });
+
+    if (
+      !debit.committed ||
+      !after ||
+      !after.debited ||
+      !after.debited[withdrawalId]
+    ) {
+      await requestRef.update({
+        status: "rejected",
+        reason: "insufficient_balance",
+        updatedAt: Date.now(),
+      });
+
+      return res.status(400).json({
+        success: false,
+        message: "Insufficient balance",
+      });
     }
 
-    // 4a. Sandbox: simulate only, no real money leaves OxaPay.
+    // 4a. Sandbox
     if (sandbox) {
-      await requestRef.update({ status: "sandbox_simulated", updatedAt: Date.now() });
+      await requestRef.update({
+        status: "sandbox_simulated",
+        updatedAt: Date.now(),
+      });
+
       return res.status(200).json({
         success: true,
         withdrawalId,
@@ -108,62 +260,147 @@ export default async function handler(req, res) {
       });
     }
 
-    await requestRef.update({ status: "processing", updatedAt: Date.now() });
+    await requestRef.update({
+      status: "processing",
+      updatedAt: Date.now(),
+    });
 
-    // 4b. Live: send the payout through OxaPay
+    // 4b. Live OxaPay payout
     let response;
     let result;
+
     try {
-      response = await fetch("https://api.oxapay.com/v1/payout", {
-        method: "POST",
-        headers: { payout_api_key: payoutKey, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          address,
-          currency: "USDT",
-          amount,
-          network,
-          description: withdrawalId,
-          callback_url: baseUrl + "/api/oxapay-webhook",
-        }),
-      });
-      result = await response.json().catch(() => ({}));
+      response = await fetch(
+        "https://api.oxapay.com/v1/payout",
+        {
+          method: "POST",
+          headers: {
+            payout_api_key: payoutKey,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            address,
+            currency: "USDT",
+            amount,
+            network,
+            description: withdrawalId,
+            callback_url:
+              baseUrl +
+              "/api/oxapay-webhook",
+          }),
+        }
+      );
+
+      result = await response
+        .json()
+        .catch(() => ({}));
     } catch (networkError) {
-      // Unknown outcome: the payout may have gone through. Do NOT refund automatically.
-      console.error("OxaPay payout network error:", networkError.message);
-      await requestRef.update({ status: "review_required", reason: "payout_unknown", updatedAt: Date.now() });
-      return res.status(202).json({ success: true, withdrawalId, status: "review_required" });
+      console.error(
+        "OxaPay payout network error:",
+        networkError.message
+      );
+
+      await requestRef.update({
+        status: "review_required",
+        reason: "payout_unknown",
+        updatedAt: Date.now(),
+      });
+
+      return res.status(202).json({
+        success: true,
+        withdrawalId,
+        status: "review_required",
+      });
     }
 
-    if (!response.ok || !result.data || !result.data.track_id) {
-      // Clear failure from OxaPay -> refund once.
-      console.error("OxaPay payout failed: HTTP " + response.status + " | " + JSON.stringify(result.error || result.message || result));
+    // Clear payout failure -> refund once
+    if (
+      !response.ok ||
+      !result.data ||
+      !result.data.track_id
+    ) {
+      console.error(
+        "OxaPay payout failed: HTTP " +
+          response.status +
+          " | " +
+          JSON.stringify(
+            result.error ||
+              result.message ||
+              result
+          )
+      );
 
-      await walletRef.transaction((current) => {
-        if (current === null) return current;
-        const refunded = current.refunded || {};
-        if (refunded[withdrawalId]) return;
-        if (!(current.debited || {})[withdrawalId]) return;
-        current.balance = round(Number(current.balance || 0) + amount);
-        current.refunded = { ...refunded, [withdrawalId]: { amount, at: Date.now() } };
-        current.updatedAt = Date.now();
-        return current;
-      });
+      await walletRef.transaction(
+        (current) => {
+          if (current === null)
+            return current;
+
+          const refunded =
+            current.refunded || {};
+
+          if (refunded[withdrawalId])
+            return;
+
+          if (
+            !(current.debited || {})[
+              withdrawalId
+            ]
+          ) {
+            return;
+          }
+
+          current.balance = round(
+            Number(current.balance || 0) +
+              amount
+          );
+
+          current.refunded = {
+            ...refunded,
+            [withdrawalId]: {
+              amount,
+              at: Date.now(),
+            },
+          };
+
+          current.updatedAt = Date.now();
+
+          return current;
+        }
+      );
 
       await requestRef.update({
         status: "failed",
-        reason: String((result.error && result.error.message) || result.message || "payout_failed"),
+        reason: String(
+          (result.error &&
+            result.error.message) ||
+            result.message ||
+            "payout_failed"
+        ),
         updatedAt: Date.now(),
       });
-      return res.status(502).json({ success: false, message: "Payout failed, balance returned" });
+
+      return res.status(502).json({
+        success: false,
+        message:
+          "Payout failed, balance returned",
+      });
     }
 
-    // 5. Payout accepted by OxaPay. Final status arrives on the webhook.
-    const trackId = String(result.data.track_id);
-    await database.ref("payoutTracks/" + trackId).set(withdrawalId);
+    // OxaPay accepted payout
+    const trackId = String(
+      result.data.track_id
+    );
+
+    await database
+      .ref("payoutTracks/" + trackId)
+      .set(withdrawalId);
+
     await requestRef.update({
       status: "processing",
       trackId,
-      payoutStatus: String(result.data.status || ""),
+      payoutStatus: String(
+        result.data.status || ""
+      ),
       updatedAt: Date.now(),
     });
 
@@ -175,7 +412,15 @@ export default async function handler(req, res) {
       status: "processing",
     });
   } catch (error) {
-    console.error("NOIR withdraw error:", error.message);
-    return res.status(500).json({ success: false, message: "Unable to process withdrawal" });
+    console.error(
+      "NOIR withdraw error:",
+      error.message
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Unable to process withdrawal",
+    });
   }
 }
