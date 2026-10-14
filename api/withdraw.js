@@ -3,14 +3,6 @@ import { getAuthenticatedUser, db } from "./_auth.js";
 
 const round = (n) => Math.round(n * 1e6) / 1e6;
 
-function isOwner(uid) {
-  const list = String(process.env.ADMIN_UIDS || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  return list.includes(uid);
-}
-
 function detectNetwork(address) {
   if (/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(address)) return "TRC20";
   if (/^0x[a-fA-F0-9]{40}$/.test(address)) return "BEP20";
@@ -34,13 +26,11 @@ export default async function handler(req, res) {
       return res.status(401).json({ success: false, message: "Please log in first" });
     }
 
-    // Withdrawals are limited to the owner for now.
-    if (!isOwner(auth.uid)) {
-      return res.status(403).json({ success: false, message: "Withdrawals are not open yet" });
-    }
-
+    const sandbox = process.env.OXAPAY_SANDBOX === "true";
     const payoutKey = process.env.OXAPAY_PAYOUT_API_KEY;
-    if (!payoutKey) {
+
+    // Real payouts need the payout key. Sandbox never sends real money.
+    if (!sandbox && !payoutKey) {
       return res.status(500).json({ success: false, message: "Payout configuration is missing" });
     }
 
@@ -80,6 +70,7 @@ export default async function handler(req, res) {
       currency: "USDT",
       address,
       network,
+      sandbox,
       status: "creating",
       createdAt: Date.now(),
     });
@@ -104,9 +95,21 @@ export default async function handler(req, res) {
       return res.status(400).json({ success: false, message: "Insufficient balance" });
     }
 
+    // 4a. Sandbox: simulate only, no real money leaves OxaPay.
+    if (sandbox) {
+      await requestRef.update({ status: "sandbox_simulated", updatedAt: Date.now() });
+      return res.status(200).json({
+        success: true,
+        withdrawalId,
+        amount,
+        currency: "USDT",
+        status: "sandbox_simulated",
+      });
+    }
+
     await requestRef.update({ status: "processing", updatedAt: Date.now() });
 
-    // 4. Send the payout through OxaPay
+    // 4b. Live: send the payout through OxaPay
     let response;
     let result;
     try {
