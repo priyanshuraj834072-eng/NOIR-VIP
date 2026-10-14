@@ -28,6 +28,7 @@ export default async function handler(req, res) {
 
     const sandbox = process.env.OXAPAY_SANDBOX === "true";
     const payoutKey = process.env.OXAPAY_PAYOUT_API_KEY;
+    const baseUrl = process.env.SITE_URL || "https://noir-vip.vercel.app";
 
     // Real payouts need the payout key. Sandbox never sends real money.
     if (!sandbox && !payoutKey) {
@@ -122,6 +123,7 @@ export default async function handler(req, res) {
           amount,
           network,
           description: withdrawalId,
+          callback_url: baseUrl + "/api/oxapay-payout-webhook",
         }),
       });
       result = await response.json().catch(() => ({}));
@@ -155,9 +157,12 @@ export default async function handler(req, res) {
       return res.status(502).json({ success: false, message: "Payout failed, balance returned" });
     }
 
+    // 5. Payout accepted by OxaPay. Final status arrives on the payout webhook.
+    const trackId = String(result.data.track_id);
+    await database.ref("payoutTracks/" + trackId).set(withdrawalId);
     await requestRef.update({
-      status: "sent",
-      trackId: String(result.data.track_id),
+      status: "processing",
+      trackId,
       payoutStatus: String(result.data.status || ""),
       updatedAt: Date.now(),
     });
@@ -167,7 +172,7 @@ export default async function handler(req, res) {
       withdrawalId,
       amount,
       currency: "USDT",
-      status: "sent",
+      status: "processing",
     });
   } catch (error) {
     console.error("NOIR withdraw error:", error.message);
