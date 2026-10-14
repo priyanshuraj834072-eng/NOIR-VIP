@@ -12,5 +12,11 @@
     "api/team.js": {
       "maxDuration": 10
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/earnings",
+      "schedule": "30 13 * * *"
+    }
+  ]
 }
