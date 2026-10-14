@@ -508,9 +508,9 @@ button{
 
     <div class="card">
 
-      <h2>Products</h2>
+      <h2>Projects</h2>
       <p class="muted">
-        Add, edit and control product purchase limits.
+        Create normal or VIP projects, set daily income, earning duration, VIP sale deadline and per-user purchase limit.
       </p>
 
       <div class="form-card">
@@ -518,7 +518,7 @@ button{
         <div class="row">
 
           <div>
-            <label>Product Name</label>
+            <label>Project Name</label>
             <input id="pName" placeholder="NOIR VIP">
           </div>
 
@@ -535,6 +535,20 @@ button{
           placeholder="Product description"></textarea>
 
 
+        <div class="row">
+          <div>
+            <label>Project Type</label>
+            <select id="pType" style="width:100%;padding:13px;border-radius:10px;background:#111;color:#fff;border:1px solid #333">
+              <option value="normal">Normal Project (no deadline)</option>
+              <option value="vip">VIP Project (deadline applies)</option>
+            </select>
+          </div>
+          <div>
+            <label>VIP Sale Deadline (Days from launch)</label>
+            <input id="pDeadline" type="number" min="1" placeholder="VIP only; e.g. 7">
+          </div>
+        </div>
+
         <div class="row3">
 
           <div>
@@ -543,7 +557,7 @@ button{
           </div>
 
           <div>
-            <label>Validity (Days)</label>
+            <label>Earning Duration (Days)</label>
             <input id="pDays" type="number" min="1">
           </div>
 
@@ -603,16 +617,15 @@ button{
       <h2>Referral Settings</h2>
 
       <p class="muted">
-        Set the commission percentage for your referral programme.
+        Referral commission rates on eligible project purchases (not daily income). Backend must support all three levels before payouts are active.
       </p>
 
-      <label>Commission Percentage</label>
-
-      <input id="commission"
-        type="number"
-        min="0"
-        max="100"
-        step="0.01">
+      <label>Level 1 Commission (%)</label>
+      <input id="commission" type="number" min="0" max="100" step="0.01">
+      <label style="display:block;margin-top:12px">Level 2 Commission (%)</label>
+      <input id="commissionL2" type="number" min="0" max="100" step="0.01" value="3">
+      <label style="display:block;margin-top:12px">Level 3 Commission (%)</label>
+      <input id="commissionL3" type="number" min="0" max="100" step="0.01" value="1">
 
       <button class="save" onclick="saveReferral()">
         SAVE REFERRAL SETTINGS
@@ -781,6 +794,8 @@ function loadUI(){
 
   document.getElementById("commission").value =
     settings.referral?.commissionPercent ?? 25;
+  document.getElementById("commissionL2").value = settings.referral?.level2Percent ?? 3;
+  document.getElementById("commissionL3").value = settings.referral?.level3Percent ?? 1;
 
 
   updateToggle(
@@ -923,6 +938,12 @@ async function saveProduct(){
 
     purchaseLimit:
       Number(document.getElementById("pLimit").value),
+
+    projectType:
+      document.getElementById("pType").value,
+
+    saleDeadlineDays:
+      document.getElementById("pType").value === "vip" ? Number(document.getElementById("pDeadline").value) : null,
 
     active:
       productActive
@@ -1192,6 +1213,8 @@ function editProduct(id){
 
   document.getElementById("pLimit").value =
     p.purchaseLimit ?? 1;
+  document.getElementById("pType").value = p.projectType || "normal";
+  document.getElementById("pDeadline").value = p.saleDeadlineDays ?? "";
 
 
   productActive =
@@ -1266,6 +1289,8 @@ function resetProductForm(){
   document.getElementById("pProfit").value = "";
   document.getElementById("pDays").value = "";
   document.getElementById("pLimit").value = "1";
+  document.getElementById("pType").value = "normal";
+  document.getElementById("pDeadline").value = "";
 
   productActive = true;
 
