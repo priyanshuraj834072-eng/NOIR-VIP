@@ -61,8 +61,17 @@ export default async function handler(req, res) {
       return res.status(400).send("Invalid order ID");
     }
 
+    console.log("WEBHOOK received:", {
+      orderId,
+      status: data.status,
+      type: data.type,
+      amount: data.amount,
+      currency: data.currency,
+    });
+
     // Ignore non-final statuses
     if (String(data.status || "").toLowerCase() !== "paid") {
+      console.log("WEBHOOK ignored: status is not paid ->", data.status);
       return res.status(200).send("ok");
     }
 
@@ -84,6 +93,7 @@ export default async function handler(req, res) {
 
     // Already processed (duplicate webhook)
     if (order.status !== "pending") {
+      console.log("WEBHOOK ignored: order status is", order.status);
       return res.status(200).send("ok");
     }
 
@@ -98,7 +108,12 @@ export default async function handler(req, res) {
       paidAmount < expectedAmount ||
       String(data.currency || "").toUpperCase() !== String(order.currency || "").toUpperCase()
     ) {
-      console.error("OxaPay amount/currency mismatch:", orderId);
+      console.error("OxaPay amount/currency mismatch:", orderId, {
+        expectedAmount,
+        paidAmount,
+        got: data.currency,
+        want: order.currency,
+      });
       await orderRef.update({ status: "review_required", updatedAt: Date.now() });
       return res.status(200).send("ok");
     }
@@ -134,6 +149,7 @@ export default async function handler(req, res) {
       return current;
     });
 
+    console.log("WEBHOOK success: credited", orderId, expectedAmount);
     return res.status(200).send("ok");
   } catch (error) {
     console.error("OxaPay webhook error:", error.message);
