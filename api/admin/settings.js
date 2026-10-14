@@ -10,6 +10,10 @@ const DEFAULT_SETTINGS = {
     minWithdrawal: 1,
     maxWithdrawal: 100000,
   },
+
+  referral: {
+    commissionPercent: 25,
+  },
 };
 
 function isAdmin(req) {
@@ -32,127 +36,387 @@ function isAdmin(req) {
   );
 }
 
-function cleanNumber(value, fallback) {
+function numberValue(value, fallback, min = 0) {
   const n = Number(value);
 
-  if (!Number.isFinite(n) || n < 0) {
+  if (!Number.isFinite(n) || n < min) {
     return fallback;
   }
 
-  return Math.round(n * 100) / 100;
+  return Math.round(n * 1000000) / 1000000;
+}
+
+function cleanProduct(product, existing = {}) {
+  const name = String(
+    product.name ?? existing.name ?? ""
+  ).trim();
+
+  const description = String(
+    product.description ?? existing.description ?? ""
+  ).trim();
+
+  const price = numberValue(
+    product.price,
+    existing.price ?? 0,
+    0
+  );
+
+  const dailyProfit = numberValue(
+    product.dailyProfit,
+    existing.dailyProfit ?? 0,
+    0
+  );
+
+  const validityDays = Math.floor(
+    numberValue(
+      product.validityDays,
+      existing.validityDays ?? 1,
+      1
+    )
+  );
+
+  const purchaseLimit = Math.floor(
+    numberValue(
+      product.purchaseLimit,
+      existing.purchaseLimit ?? 1,
+      1
+    )
+  );
+
+  const active =
+    typeof product.active === "boolean"
+      ? product.active
+      : existing.active !== false;
+
+  return {
+    name,
+    description,
+    price,
+    dailyProfit,
+    validityDays,
+    purchaseLimit,
+    active,
+    updatedAt: Date.now(),
+  };
 }
 
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store, private");
 
   try {
-    // Admin authentication
-    if (!isAdmin(req)) {
-      return res.status(403).json({
-        success: false,
-        message: "Admin access required",
+    /*
+      GET:
+      Publicly returns only safe configuration/product data.
+      No admin credentials or secrets are returned.
+    */
+
+    if (req.method === "GET") {
+      const database = db();
+
+      const [settingsSnap, productsSnap] = await Promise.all([
+        database.ref("adminSettings").get(),
+        database.ref("products").get(),
+      ]);
+
+      const settings = settingsSnap.exists()
+        ? settingsSnap.val()
+        : DEFAULT_SETTINGS;
+
+      const products = productsSnap.exists()
+        ? productsSnap.val()
+        : {};
+
+      return res.status(200).json({
+        success: true,
+        settings,
+        products,
       });
     }
 
-    const database = db();
-    const settingsRef = database.ref("adminSettings");
+    /*
+      POST:
+      Only admin can modify settings/products.
+    */
 
-    // GET current settings
-    if (req.method === "GET") {
-      const snap = await settingsRef.get();
+    if (req.method === "POST") {
+      if (!isAdmin(req)) {
+        return res.status(403).json({
+          success: false,
+          message: "Admin access required",
+        });
+      }
 
-      if (!snap.exists()) {
-        await settingsRef.set(DEFAULT_SETTINGS);
+      const database = db();
+      const body = req.body || {};
+      const action = String(body.action || "").trim();
+
+      /*
+        PAYMENT SETTINGS
+      */
+
+      if (action === "updatePayments") {
+        const currentSnap =
+          await database.ref("adminSettings").get();
+
+        const current = currentSnap.exists()
+          ? currentSnap.val()
+          : DEFAULT_SETTINGS;
+
+        const payments = body.payments || {};
+
+        const minDeposit = numberValue(
+          payments.minDeposit,
+          current.payments?.minDeposit ?? 1,
+          0.01
+        );
+
+        const maxDeposit = numberValue(
+          payments.maxDeposit,
+          current.payments?.maxDeposit ?? 100000,
+          0.01
+        );
+
+        const minWithdrawal = numberValue(
+          payments.minWithdrawal,
+          current.payments?.minWithdrawal ?? 1,
+          0.01
+        );
+
+        const maxWithdrawal = numberValue(
+          payments.maxWithdrawal,
+          current.payments?.maxWithdrawal ?? 100000,
+          0.01
+        );
+
+        if (maxDeposit < minDeposit) {
+          return res.status(400).json({
+            success: false,
+            message: "Maximum deposit cannot be lower than minimum deposit",
+          });
+        }
+
+        if (maxWithdrawal < minWithdrawal) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "Maximum withdrawal cannot be lower than minimum withdrawal",
+          });
+        }
+
+        const updated = {
+          ...current,
+
+          payments: {
+            depositEnabled:
+              typeof payments.depositEnabled === "boolean"
+                ? payments.depositEnabled
+                : Boolean(
+                    current.payments?.depositEnabled ?? true
+                  ),
+
+            minDeposit,
+            maxDeposit,
+
+            withdrawalEnabled:
+              typeof payments.withdrawalEnabled === "boolean"
+                ? payments.withdrawalEnabled
+                : Boolean(
+                    current.payments?.withdrawalEnabled ?? true
+                  ),
+
+            minWithdrawal,
+            maxWithdrawal,
+          },
+
+          updatedAt: Date.now(),
+        };
+
+        await database.ref("adminSettings").set(updated);
 
         return res.status(200).json({
           success: true,
-          settings: DEFAULT_SETTINGS,
+          message: "Payment settings saved",
+          settings: updated,
         });
       }
 
-      return res.status(200).json({
-        success: true,
-        settings: snap.val(),
-      });
-    }
+      /*
+        REFERRAL SETTINGS
+      */
 
-    // POST update settings
-    if (req.method === "POST") {
-      const currentSnap = await settingsRef.get();
+      if (action === "updateReferral") {
+        const currentSnap =
+          await database.ref("adminSettings").get();
 
-      const current = currentSnap.exists()
-        ? currentSnap.val()
-        : DEFAULT_SETTINGS;
+        const current = currentSnap.exists()
+          ? currentSnap.val()
+          : DEFAULT_SETTINGS;
 
-      const body = req.body || {};
-      const payments = body.payments || {};
+        const percent = numberValue(
+          body.commissionPercent,
+          current.referral?.commissionPercent ?? 25,
+          0
+        );
 
-      const minDeposit = cleanNumber(
-        payments.minDeposit,
-        current.payments?.minDeposit ?? 1
-      );
+        if (percent > 100) {
+          return res.status(400).json({
+            success: false,
+            message: "Commission cannot exceed 100%",
+          });
+        }
 
-      const maxDeposit = cleanNumber(
-        payments.maxDeposit,
-        current.payments?.maxDeposit ?? 100000
-      );
+        const updated = {
+          ...current,
 
-      const minWithdrawal = cleanNumber(
-        payments.minWithdrawal,
-        current.payments?.minWithdrawal ?? 1
-      );
+          referral: {
+            commissionPercent: percent,
+          },
 
-      const maxWithdrawal = cleanNumber(
-        payments.maxWithdrawal,
-        current.payments?.maxWithdrawal ?? 100000
-      );
+          updatedAt: Date.now(),
+        };
 
-      if (minDeposit <= 0 || maxDeposit < minDeposit) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid deposit limits",
+        await database.ref("adminSettings").set(updated);
+
+        return res.status(200).json({
+          success: true,
+          message: "Referral settings saved",
+          settings: updated,
         });
       }
 
-      if (minWithdrawal <= 0 || maxWithdrawal < minWithdrawal) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid withdrawal limits",
+      /*
+        ADD PRODUCT
+      */
+
+      if (action === "addProduct") {
+        const productId =
+          "product_" +
+          cryptoRandomId();
+
+        const product = cleanProduct(body.product || {});
+
+        if (!product.name) {
+          return res.status(400).json({
+            success: false,
+            message: "Product name is required",
+          });
+        }
+
+        if (product.price <= 0) {
+          return res.status(400).json({
+            success: false,
+            message: "Product price must be greater than 0",
+          });
+        }
+
+        await database
+          .ref(`products/${productId}`)
+          .set({
+            productId,
+            ...product,
+            createdAt: Date.now(),
+          });
+
+        return res.status(200).json({
+          success: true,
+          message: "Product added",
+          productId,
+          product,
         });
       }
 
-      const updatedSettings = {
-        payments: {
-          depositEnabled:
-            typeof payments.depositEnabled === "boolean"
-              ? payments.depositEnabled
-              : Boolean(
-                  current.payments?.depositEnabled ?? true
-                ),
+      /*
+        EDIT PRODUCT
+      */
 
-          minDeposit,
-          maxDeposit,
+      if (action === "updateProduct") {
+        const productId = String(body.productId || "").trim();
 
-          withdrawalEnabled:
-            typeof payments.withdrawalEnabled === "boolean"
-              ? payments.withdrawalEnabled
-              : Boolean(
-                  current.payments?.withdrawalEnabled ?? true
-                ),
+        if (!productId) {
+          return res.status(400).json({
+            success: false,
+            message: "Product ID is required",
+          });
+        }
 
-          minWithdrawal,
-          maxWithdrawal,
-        },
+        const productRef =
+          database.ref(`products/${productId}`);
 
-        updatedAt: Date.now(),
-      };
+        const snap = await productRef.get();
 
-      await settingsRef.set(updatedSettings);
+        if (!snap.exists()) {
+          return res.status(404).json({
+            success: false,
+            message: "Product not found",
+          });
+        }
 
-      return res.status(200).json({
-        success: true,
-        message: "Payment settings updated",
-        settings: updatedSettings,
+        const product = cleanProduct(
+          body.product || {},
+          snap.val()
+        );
+
+        if (!product.name) {
+          return res.status(400).json({
+            success: false,
+            message: "Product name is required",
+          });
+        }
+
+        if (product.price <= 0) {
+          return res.status(400).json({
+            success: false,
+            message: "Product price must be greater than 0",
+          });
+        }
+
+        await productRef.update(product);
+
+        return res.status(200).json({
+          success: true,
+          message: "Product updated",
+          productId,
+          product,
+        });
+      }
+
+      /*
+        DELETE PRODUCT
+      */
+
+      if (action === "deleteProduct") {
+        const productId = String(body.productId || "").trim();
+
+        if (!productId) {
+          return res.status(400).json({
+            success: false,
+            message: "Product ID is required",
+          });
+        }
+
+        const productRef =
+          database.ref(`products/${productId}`);
+
+        const snap = await productRef.get();
+
+        if (!snap.exists()) {
+          return res.status(404).json({
+            success: false,
+            message: "Product not found",
+          });
+        }
+
+        await productRef.remove();
+
+        return res.status(200).json({
+          success: true,
+          message: "Product deleted",
+        });
+      }
+
+      return res.status(400).json({
+        success: false,
+        message: "Unknown admin action",
       });
     }
 
@@ -170,7 +434,18 @@ export default async function handler(req, res) {
 
     return res.status(500).json({
       success: false,
-      message: "Unable to manage admin settings",
+      message: "Unable to process admin request",
     });
   }
+}
+
+/*
+  Small server-side ID generator.
+  No external package required.
+*/
+function cryptoRandomId() {
+  return (
+    Date.now().toString(36) +
+    Math.random().toString(36).slice(2, 10)
+  ).toUpperCase();
 }
