@@ -3,15 +3,6 @@
     "api/profile.js": {
       "maxDuration": 10
     },
-    "api/register.js": {
-      "maxDuration": 10
-    },
-    "api/login.js": {
-      "maxDuration": 10
-    },
-    "api/logout.js": {
-      "maxDuration": 10
-    },
     "api/referral.js": {
       "maxDuration": 10
     },
