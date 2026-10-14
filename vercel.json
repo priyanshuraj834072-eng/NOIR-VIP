@@ -1,22 +1,31 @@
 {
-  "functions": {
-    "api/auth.js": {
-      "maxDuration": 10
-    },
-    "api/profile.js": {
-      "maxDuration": 10
-    },
-    "api/referral.js": {
-      "maxDuration": 10
-    },
-    "api/team.js": {
-      "maxDuration": 10
-    }
-  },
-  "crons": [
-    {
-      "path": "/api/earnings",
-      "schedule": "30 13 * * *"
-    }
-  ]
+
+"functions": {
+
+"api/auth.js": {
+
+"maxDuration": 10
+
+},
+
+"api/profile.js": {
+
+"maxDuration": 10
+
+},
+
+"api/referral.js": {
+
+"maxDuration": 10
+
+},
+
+"api/team.js": {
+
+"maxDuration": 10
+
+}
+
+}
+
 }
