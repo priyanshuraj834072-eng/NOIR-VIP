@@ -12,13 +12,31 @@ export default async function handler(req, res) {
       return res.status(401).json({ success: false, message: "Please log in first" });
     }
 
-    const snap = await db().ref("wallets/" + auth.uid + "/balance").get();
-    const balance = snap.exists() ? Number(snap.val()) : 0;
+    const database = db();
+
+    const [balanceSnap, wdrSnap] = await Promise.all([
+      database.ref("wallets/" + auth.uid + "/balance").get(),
+      database.ref("withdrawalRequests").orderByChild("uid").equalTo(auth.uid).get(),
+    ]);
+
+    const balance = balanceSnap.exists() ? Number(balanceSnap.val()) : 0;
+
+    // Only real, completed payouts count as "withdrawn".
+    let totalWithdrawn = 0;
+    if (wdrSnap.exists()) {
+      wdrSnap.forEach((child) => {
+        const w = child.val();
+        if (w.status === "completed" || w.status === "sent") {
+          totalWithdrawn += Number(w.amount) || 0;
+        }
+      });
+    }
 
     res.setHeader("Cache-Control", "no-store");
     return res.status(200).json({
       success: true,
       balance: Number.isFinite(balance) ? balance : 0,
+      totalWithdrawn: Math.round(totalWithdrawn * 100) / 100,
       currency: "USDT",
     });
   } catch (error) {
