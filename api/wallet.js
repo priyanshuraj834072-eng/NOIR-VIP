@@ -14,14 +14,20 @@ export default async function handler(req, res) {
 
     const database = db();
 
-    const [balanceSnap, wdrSnap] = await Promise.all([
-      database.ref("wallets/" + auth.uid + "/balance").get(),
+    // Ab sirf balance nahi, poora wallet fetch kar rahe hain
+    const [walletSnap, wdrSnap] = await Promise.all([
+      database.ref("wallets/" + auth.uid).get(),
       database.ref("withdrawalRequests").orderByChild("uid").equalTo(auth.uid).get(),
     ]);
 
-    const balance = balanceSnap.exists() ? Number(balanceSnap.val()) : 0;
+    const walletData = walletSnap.exists() ? walletSnap.val() : {};
+    
+    // Balance, Invested aur Profit values nikalna (agar nahi hai toh 0)
+    const balance = Number(walletData.balance) || 0;
+    const totalInvested = Number(walletData.totalInvested) || 0;
+    const totalProfit = Number(walletData.totalProfit) || 0;
 
-    // Only real, completed payouts count as "withdrawn".
+    // Withdrawals count karna
     let totalWithdrawn = 0;
     if (wdrSnap.exists()) {
       wdrSnap.forEach((child) => {
@@ -36,6 +42,8 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: true,
       balance: Number.isFinite(balance) ? balance : 0,
+      totalInvested: Math.round(totalInvested * 100) / 100,
+      totalProfit: Math.round(totalProfit * 100) / 100,
       totalWithdrawn: Math.round(totalWithdrawn * 100) / 100,
       currency: "USDT",
     });
