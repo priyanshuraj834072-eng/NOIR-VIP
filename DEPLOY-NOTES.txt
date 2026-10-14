@@ -1,17 +1,22 @@
-NOIR-VIP update pack
+NOIR-VIP UPDATE PACKAGE
 
 Included:
-- index.html: current project page HTML (kept from provided source)
-- admin.html: updated referral settings form to send Level 1/2/3 percentages
-- api/purchase.js: authenticated purchase endpoint; validates VIP deadline; records purchase; uses referralAttributions for up to 3 referral levels; purchase-based commissions only
-- api/cron.js: idempotent daily income credit ledger stored atomically with wallet balance
-- vercel.json: schedules daily payout at 19:00 Asia/Kolkata (13:30 UTC)
+- index.html and admin.html (existing current HTML copies)
+- api/purchase.js
+- api/cron.js
+- api/admin/settings.js
+- vercel.json
 
-IMPORTANT DEPLOYMENT REQUIREMENTS / LIMITATIONS
-1. Merge these files into the existing repository; do not overwrite existing auth, wallet, deposits, withdrawals, profile, or history files.
-2. Keep your existing api/_auth.js and api/admin/settings.js. The existing settings API must be updated to save/read `projectType`, `saleDeadlineDays`, `saleDeadlineAt`, and referral `level2Percent` and `level3Percent`; it must set `createdAt` once when a product is first created and preserve it during edits. The admin page's product form already sends projectType and saleDeadlineDays, but the existing backend must persist them.
-3. Vercel Cron availability depends on your Vercel plan. Confirm your plan supports Cron Jobs and check the deployment logs. Add environment variable CRON_SECRET with a long random secret. Vercel Cron requests must send `Authorization: Bearer <CRON_SECRET>`; verify that this matches your deployment's cron behavior before relying on payouts.
-4. The cron endpoint credits one daily income per eligible purchase for each invocation's India calendar date. It is idempotent for repeat calls on the same India date. Test with a staging database before production.
-5. `index.html` in this pack is the current provided HTML; it still contains placeholder/demo project cards and does not yet fetch `/api/products`, `/api/purchases`, or live wallet summary. Therefore do not treat the front-end dashboard aggregation/countdown as complete based on this pack alone.
-6. The API writes referral commissions to `referralCommissions/{purchaseId}_L{level}` and stores wallet idempotency keys in `wallets/{uid}/referralCommissions`. Referral chain traversal expects each referred account to have `referralAttributions/{uid}` with `referrerUid`. If older records lack that field, later levels cannot be resolved automatically.
-7. Normal project sale availability remains controlled by the existing admin active toggle. VIP sale ends at `saleDeadlineAt`; existing purchases retain their stored earning terms.
+IMPORTANT BEFORE PRODUCTION
+1. Merge these files into the existing project; do not delete your other API files (especially api/_auth.js, wallet/history/referral/team/deposit/withdrawal APIs).
+2. Set Vercel Environment Variables:
+   - CRON_SECRET: a long random secret. The scheduled cron request must send Authorization: Bearer <same value>.
+   - Keep your existing Firebase Admin environment variables and ADMIN_USERNAME / ADMIN_PASSWORD unchanged.
+3. vercel.json schedules /api/cron at 13:30 UTC, which is 19:00 Asia/Kolkata daily.
+4. Cron schedules run only after deployment to Vercel and only if the Vercel plan/project supports Cron Jobs. Check the project's Cron Jobs page/logs after deployment.
+5. Test the cron endpoint manually in a non-production/staging environment first, using Authorization: Bearer <CRON_SECRET>. Never expose the secret in frontend code.
+6. Do not enable real payouts until you have checked purchase records, wallet transactions, and idempotency in staging.
+7. api/admin/settings.js uses x-admin-username and x-admin-password headers matching ADMIN_USERNAME and ADMIN_PASSWORD environment variables, consistent with the described existing setup. Confirm your admin frontend sends these headers.
+
+CAUTION
+This package is not a guarantee that the whole app is production-ready. Integrate with the current repository and test frontend/backend compatibility before production. The cron code credits dailyProfit from existing purchase records; confirm this payout rule matches your intended business logic before enabling it.
