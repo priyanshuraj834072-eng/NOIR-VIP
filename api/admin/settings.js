@@ -5,7 +5,6 @@ const DEFAULT_SETTINGS = {
     depositEnabled: true,
     minDeposit: 1,
     maxDeposit: 100000,
-
     withdrawalEnabled: true,
     minWithdrawal: 1,
     maxWithdrawal: 100000,
@@ -22,17 +21,9 @@ function isAdmin(req) {
 
   if (!username || !password) return false;
 
-  const receivedUsername = String(
-    req.headers["x-admin-username"] || ""
-  );
-
-  const receivedPassword = String(
-    req.headers["x-admin-password"] || ""
-  );
-
   return (
-    receivedUsername === username &&
-    receivedPassword === password
+    String(req.headers["x-admin-username"] || "") === username &&
+    String(req.headers["x-admin-password"] || "") === password
   );
 }
 
@@ -58,7 +49,7 @@ function cleanProduct(product, existing = {}) {
   const price = numberValue(
     product.price,
     existing.price ?? 0,
-    0
+    0.01
   );
 
   const dailyProfit = numberValue(
@@ -100,23 +91,39 @@ function cleanProduct(product, existing = {}) {
   };
 }
 
+function createProductId() {
+  return (
+    "product_" +
+    Date.now().toString(36) +
+    Math.random().toString(36).slice(2, 10)
+  ).toUpperCase();
+}
+
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store, private");
 
   try {
     /*
-      GET:
-      Publicly returns only safe configuration/product data.
-      No admin credentials or secrets are returned.
+      GET
+      Admin authentication is required here too.
+      This prevents the public endpoint from exposing
+      your admin-managed product configuration.
     */
-
     if (req.method === "GET") {
+      if (!isAdmin(req)) {
+        return res.status(403).json({
+          success: false,
+          message: "Admin access required",
+        });
+      }
+
       const database = db();
 
-      const [settingsSnap, productsSnap] = await Promise.all([
-        database.ref("adminSettings").get(),
-        database.ref("products").get(),
-      ]);
+      const [settingsSnap, productsSnap] =
+        await Promise.all([
+          database.ref("adminSettings").get(),
+          database.ref("products").get(),
+        ]);
 
       const settings = settingsSnap.exists()
         ? settingsSnap.val()
@@ -133,303 +140,322 @@ export default async function handler(req, res) {
       });
     }
 
-    /*
-      POST:
-      Only admin can modify settings/products.
-    */
+    if (req.method !== "POST") {
+      res.setHeader("Allow", "GET, POST");
 
-    if (req.method === "POST") {
-      if (!isAdmin(req)) {
-        return res.status(403).json({
-          success: false,
-          message: "Admin access required",
-        });
-      }
-
-      const database = db();
-      const body = req.body || {};
-      const action = String(body.action || "").trim();
-
-      /*
-        PAYMENT SETTINGS
-      */
-
-      if (action === "updatePayments") {
-        const currentSnap =
-          await database.ref("adminSettings").get();
-
-        const current = currentSnap.exists()
-          ? currentSnap.val()
-          : DEFAULT_SETTINGS;
-
-        const payments = body.payments || {};
-
-        const minDeposit = numberValue(
-          payments.minDeposit,
-          current.payments?.minDeposit ?? 1,
-          0.01
-        );
-
-        const maxDeposit = numberValue(
-          payments.maxDeposit,
-          current.payments?.maxDeposit ?? 100000,
-          0.01
-        );
-
-        const minWithdrawal = numberValue(
-          payments.minWithdrawal,
-          current.payments?.minWithdrawal ?? 1,
-          0.01
-        );
-
-        const maxWithdrawal = numberValue(
-          payments.maxWithdrawal,
-          current.payments?.maxWithdrawal ?? 100000,
-          0.01
-        );
-
-        if (maxDeposit < minDeposit) {
-          return res.status(400).json({
-            success: false,
-            message: "Maximum deposit cannot be lower than minimum deposit",
-          });
-        }
-
-        if (maxWithdrawal < minWithdrawal) {
-          return res.status(400).json({
-            success: false,
-            message:
-              "Maximum withdrawal cannot be lower than minimum withdrawal",
-          });
-        }
-
-        const updated = {
-          ...current,
-
-          payments: {
-            depositEnabled:
-              typeof payments.depositEnabled === "boolean"
-                ? payments.depositEnabled
-                : Boolean(
-                    current.payments?.depositEnabled ?? true
-                  ),
-
-            minDeposit,
-            maxDeposit,
-
-            withdrawalEnabled:
-              typeof payments.withdrawalEnabled === "boolean"
-                ? payments.withdrawalEnabled
-                : Boolean(
-                    current.payments?.withdrawalEnabled ?? true
-                  ),
-
-            minWithdrawal,
-            maxWithdrawal,
-          },
-
-          updatedAt: Date.now(),
-        };
-
-        await database.ref("adminSettings").set(updated);
-
-        return res.status(200).json({
-          success: true,
-          message: "Payment settings saved",
-          settings: updated,
-        });
-      }
-
-      /*
-        REFERRAL SETTINGS
-      */
-
-      if (action === "updateReferral") {
-        const currentSnap =
-          await database.ref("adminSettings").get();
-
-        const current = currentSnap.exists()
-          ? currentSnap.val()
-          : DEFAULT_SETTINGS;
-
-        const percent = numberValue(
-          body.commissionPercent,
-          current.referral?.commissionPercent ?? 25,
-          0
-        );
-
-        if (percent > 100) {
-          return res.status(400).json({
-            success: false,
-            message: "Commission cannot exceed 100%",
-          });
-        }
-
-        const updated = {
-          ...current,
-
-          referral: {
-            commissionPercent: percent,
-          },
-
-          updatedAt: Date.now(),
-        };
-
-        await database.ref("adminSettings").set(updated);
-
-        return res.status(200).json({
-          success: true,
-          message: "Referral settings saved",
-          settings: updated,
-        });
-      }
-
-      /*
-        ADD PRODUCT
-      */
-
-      if (action === "addProduct") {
-        const productId =
-          "product_" +
-          cryptoRandomId();
-
-        const product = cleanProduct(body.product || {});
-
-        if (!product.name) {
-          return res.status(400).json({
-            success: false,
-            message: "Product name is required",
-          });
-        }
-
-        if (product.price <= 0) {
-          return res.status(400).json({
-            success: false,
-            message: "Product price must be greater than 0",
-          });
-        }
-
-        await database
-          .ref(`products/${productId}`)
-          .set({
-            productId,
-            ...product,
-            createdAt: Date.now(),
-          });
-
-        return res.status(200).json({
-          success: true,
-          message: "Product added",
-          productId,
-          product,
-        });
-      }
-
-      /*
-        EDIT PRODUCT
-      */
-
-      if (action === "updateProduct") {
-        const productId = String(body.productId || "").trim();
-
-        if (!productId) {
-          return res.status(400).json({
-            success: false,
-            message: "Product ID is required",
-          });
-        }
-
-        const productRef =
-          database.ref(`products/${productId}`);
-
-        const snap = await productRef.get();
-
-        if (!snap.exists()) {
-          return res.status(404).json({
-            success: false,
-            message: "Product not found",
-          });
-        }
-
-        const product = cleanProduct(
-          body.product || {},
-          snap.val()
-        );
-
-        if (!product.name) {
-          return res.status(400).json({
-            success: false,
-            message: "Product name is required",
-          });
-        }
-
-        if (product.price <= 0) {
-          return res.status(400).json({
-            success: false,
-            message: "Product price must be greater than 0",
-          });
-        }
-
-        await productRef.update(product);
-
-        return res.status(200).json({
-          success: true,
-          message: "Product updated",
-          productId,
-          product,
-        });
-      }
-
-      /*
-        DELETE PRODUCT
-      */
-
-      if (action === "deleteProduct") {
-        const productId = String(body.productId || "").trim();
-
-        if (!productId) {
-          return res.status(400).json({
-            success: false,
-            message: "Product ID is required",
-          });
-        }
-
-        const productRef =
-          database.ref(`products/${productId}`);
-
-        const snap = await productRef.get();
-
-        if (!snap.exists()) {
-          return res.status(404).json({
-            success: false,
-            message: "Product not found",
-          });
-        }
-
-        await productRef.remove();
-
-        return res.status(200).json({
-          success: true,
-          message: "Product deleted",
-        });
-      }
-
-      return res.status(400).json({
+      return res.status(405).json({
         success: false,
-        message: "Unknown admin action",
+        message: "Method not allowed",
       });
     }
 
-    res.setHeader("Allow", "GET, POST");
+    if (!isAdmin(req)) {
+      return res.status(403).json({
+        success: false,
+        message: "Admin access required",
+      });
+    }
 
-    return res.status(405).json({
+    const database = db();
+    const body = req.body || {};
+    const action = String(body.action || "").trim();
+
+    /*
+      PAYMENT SETTINGS
+    */
+    if (action === "updatePayments") {
+      const currentSnap =
+        await database.ref("adminSettings").get();
+
+      const current = currentSnap.exists()
+        ? currentSnap.val()
+        : DEFAULT_SETTINGS;
+
+      const payments = body.payments || {};
+
+      const minDeposit = numberValue(
+        payments.minDeposit,
+        current.payments?.minDeposit ?? 1,
+        0.01
+      );
+
+      const maxDeposit = numberValue(
+        payments.maxDeposit,
+        current.payments?.maxDeposit ?? 100000,
+        0.01
+      );
+
+      const minWithdrawal = numberValue(
+        payments.minWithdrawal,
+        current.payments?.minWithdrawal ?? 1,
+        0.01
+      );
+
+      const maxWithdrawal = numberValue(
+        payments.maxWithdrawal,
+        current.payments?.maxWithdrawal ?? 100000,
+        0.01
+      );
+
+      if (maxDeposit < minDeposit) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Maximum deposit cannot be lower than minimum deposit",
+        });
+      }
+
+      if (maxWithdrawal < minWithdrawal) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Maximum withdrawal cannot be lower than minimum withdrawal",
+        });
+      }
+
+      const updated = {
+        ...current,
+
+        payments: {
+          depositEnabled:
+            typeof payments.depositEnabled === "boolean"
+              ? payments.depositEnabled
+              : Boolean(
+                  current.payments?.depositEnabled ?? true
+                ),
+
+          minDeposit,
+          maxDeposit,
+
+          withdrawalEnabled:
+            typeof payments.withdrawalEnabled === "boolean"
+              ? payments.withdrawalEnabled
+              : Boolean(
+                  current.payments?.withdrawalEnabled ?? true
+                ),
+
+          minWithdrawal,
+          maxWithdrawal,
+        },
+
+        updatedAt: Date.now(),
+      };
+
+      await database
+        .ref("adminSettings")
+        .set(updated);
+
+      return res.status(200).json({
+        success: true,
+        message: "Payment settings saved",
+        settings: updated,
+      });
+    }
+
+    /*
+      REFERRAL SETTINGS
+    */
+    if (action === "updateReferral") {
+      const currentSnap =
+        await database.ref("adminSettings").get();
+
+      const current = currentSnap.exists()
+        ? currentSnap.val()
+        : DEFAULT_SETTINGS;
+
+      const percent = numberValue(
+        body.commissionPercent,
+        current.referral?.commissionPercent ?? 25,
+        0
+      );
+
+      if (percent > 100) {
+        return res.status(400).json({
+          success: false,
+          message: "Commission cannot exceed 100%",
+        });
+      }
+
+      const updated = {
+        ...current,
+
+        referral: {
+          commissionPercent: percent,
+        },
+
+        updatedAt: Date.now(),
+      };
+
+      await database
+        .ref("adminSettings")
+        .set(updated);
+
+      return res.status(200).json({
+        success: true,
+        message: "Referral settings saved",
+        settings: updated,
+      });
+    }
+
+    /*
+      ADD PRODUCT
+    */
+    if (action === "addProduct") {
+      const product = cleanProduct(
+        body.product || {}
+      );
+
+      if (!product.name) {
+        return res.status(400).json({
+          success: false,
+          message: "Product name is required",
+        });
+      }
+
+      if (product.price <= 0) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Product price must be greater than 0",
+        });
+      }
+
+      if (product.dailyProfit < 0) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Daily profit cannot be negative",
+        });
+      }
+
+      const productId = createProductId();
+
+      await database
+        .ref(`products/${productId}`)
+        .set({
+          productId,
+          ...product,
+          createdAt: Date.now(),
+        });
+
+      return res.status(200).json({
+        success: true,
+        message: "Product added",
+        productId,
+        product,
+      });
+    }
+
+    /*
+      UPDATE PRODUCT
+    */
+    if (action === "updateProduct") {
+      const productId = String(
+        body.productId || ""
+      ).trim();
+
+      if (!productId) {
+        return res.status(400).json({
+          success: false,
+          message: "Product ID is required",
+        });
+      }
+
+      const productRef =
+        database.ref(`products/${productId}`);
+
+      const snap = await productRef.get();
+
+      if (!snap.exists()) {
+        return res.status(404).json({
+          success: false,
+          message: "Product not found",
+        });
+      }
+
+      const product = cleanProduct(
+        body.product || {},
+        snap.val()
+      );
+
+      if (!product.name) {
+        return res.status(400).json({
+          success: false,
+          message: "Product name is required",
+        });
+      }
+
+      if (product.price <= 0) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Product price must be greater than 0",
+        });
+      }
+
+      if (product.dailyProfit < 0) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Daily profit cannot be negative",
+        });
+      }
+
+      await productRef.update(product);
+
+      return res.status(200).json({
+        success: true,
+        message: "Product updated",
+        productId,
+        product,
+      });
+    }
+
+    /*
+      DELETE PRODUCT
+    */
+    if (action === "deleteProduct") {
+      const productId = String(
+        body.productId || ""
+      ).trim();
+
+      if (!productId) {
+        return res.status(400).json({
+          success: false,
+          message: "Product ID is required",
+        });
+      }
+
+      const productRef =
+        database.ref(`products/${productId}`);
+
+      const snap = await productRef.get();
+
+      if (!snap.exists()) {
+        return res.status(404).json({
+          success: false,
+          message: "Product not found",
+        });
+      }
+
+      await productRef.remove();
+
+      return res.status(200).json({
+        success: true,
+        message: "Product deleted",
+      });
+    }
+
+    return res.status(400).json({
       success: false,
-      message: "Method not allowed",
+      message: "Unknown admin action",
     });
   } catch (error) {
     console.error(
       "NOIR admin settings error:",
-      error.code || error.message || "unknown"
+      error.code ||
+        error.message ||
+        "unknown"
     );
 
     return res.status(500).json({
@@ -437,15 +463,4 @@ export default async function handler(req, res) {
       message: "Unable to process admin request",
     });
   }
-}
-
-/*
-  Small server-side ID generator.
-  No external package required.
-*/
-function cryptoRandomId() {
-  return (
-    Date.now().toString(36) +
-    Math.random().toString(36).slice(2, 10)
-  ).toUpperCase();
 }
