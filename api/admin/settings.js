@@ -1,466 +1,134 @@
 import { db } from "../_auth.js";
 
 const DEFAULT_SETTINGS = {
-  payments: {
-    depositEnabled: true,
-    minDeposit: 1,
-    maxDeposit: 100000,
-    withdrawalEnabled: true,
-    minWithdrawal: 1,
-    maxWithdrawal: 100000,
-  },
-
-  referral: {
-    commissionPercent: 25,
-  },
+  payments: { depositsEnabled: true, withdrawalsEnabled: true },
+  referral: { level1Percent: 25, level2Percent: 3, level3Percent: 1, commissionPercent: 25 },
 };
-
-function isAdmin(req) {
-  const username = process.env.ADMIN_USERNAME;
-  const password = process.env.ADMIN_PASSWORD;
-
-  if (!username || !password) return false;
-
-  return (
-    String(req.headers["x-admin-username"] || "") === username &&
-    String(req.headers["x-admin-password"] || "") === password
-  );
-}
-
-function numberValue(value, fallback, min = 0) {
+const round = (n) => Math.round(n * 1e6) / 1e6;
+const safeNumber = (value, fallback, min, max) => {
   const n = Number(value);
-
-  if (!Number.isFinite(n) || n < min) {
-    return fallback;
+  return Number.isFinite(n) && n >= min && n <= max ? n : fallback;
+};
+const cleanProduct = (input = {}, old = {}) => {
+  const name = String(input.name ?? old.name ?? "").trim().slice(0, 120);
+  const description = String(input.description ?? old.description ?? "").trim().slice(0, 2000);
+  const price = safeNumber(input.price ?? old.price, 0, 0.000001, 1e12);
+  const dailyProfit = safeNumber(input.dailyProfit ?? old.dailyProfit, 0, 0, 1e9);
+  const validityDays = Math.floor(safeNumber(input.validityDays ?? input.earningDurationDays ?? old.validityDays ?? old.earningDurationDays, 1, 1, 36500));
+  const purchaseLimit = Math.floor(safeNumber(input.purchaseLimit ?? old.purchaseLimit, 1, 1, 100000));
+  const projectType = String(input.projectType ?? old.projectType ?? input.type ?? old.type ?? "normal").toLowerCase() === "vip" ? "vip" : "normal";
+  let saleEndsAt = null;
+  const rawDeadline = input.saleEndsAt ?? input.purchaseDeadline ?? old.saleEndsAt ?? old.purchaseDeadline ?? null;
+  if (projectType === "vip" && rawDeadline !== null && rawDeadline !== "") {
+    const parsed = typeof rawDeadline === "number" ? rawDeadline : Date.parse(rawDeadline);
+    if (Number.isFinite(parsed)) saleEndsAt = parsed;
   }
-
-  return Math.round(n * 1000000) / 1000000;
-}
-
-function cleanProduct(product, existing = {}) {
-  const name = String(
-    product.name ?? existing.name ?? ""
-  ).trim();
-
-  const description = String(
-    product.description ?? existing.description ?? ""
-  ).trim();
-
-  const price = numberValue(
-    product.price,
-    existing.price ?? 0,
-    0.01
-  );
-
-  const dailyProfit = numberValue(
-    product.dailyProfit,
-    existing.dailyProfit ?? 0,
-    0
-  );
-
-  const validityDays = Math.floor(
-    numberValue(
-      product.validityDays,
-      existing.validityDays ?? 1,
-      1
-    )
-  );
-
-  const purchaseLimit = Math.floor(
-    numberValue(
-      product.purchaseLimit,
-      existing.purchaseLimit ?? 1,
-      1
-    )
-  );
-
-  const active =
-    typeof product.active === "boolean"
-      ? product.active
-      : existing.active !== false;
-
   return {
+    ...old,
     name,
     description,
-    price,
-    dailyProfit,
+    price: round(price),
+    dailyProfit: round(dailyProfit),
     validityDays,
+    earningDurationDays: validityDays,
     purchaseLimit,
-    active,
+    projectType,
+    type: projectType,
+    saleEndsAt: projectType === "vip" ? saleEndsAt : null,
+    purchaseDeadline: projectType === "vip" ? saleEndsAt : null,
+    active: input.active === undefined ? (old.active !== false) : input.active === true || input.active === "true" || input.active === 1,
     updatedAt: Date.now(),
   };
+};
+const cleanPercent = (value, fallback) => safeNumber(value, fallback, 0, 100);
+function isAdmin(req) {
+  const expectedUser = process.env.ADMIN_USERNAME;
+  const expectedPass = process.env.ADMIN_PASSWORD;
+  return Boolean(expectedUser && expectedPass &&
+    req.headers["x-admin-username"] === expectedUser &&
+    req.headers["x-admin-password"] === expectedPass);
 }
-
-function createProductId() {
-  return (
-    "product_" +
-    Date.now().toString(36) +
-    Math.random().toString(36).slice(2, 10)
-  ).toUpperCase();
-}
+function response(res, status, body) { return res.status(status).json(body); }
 
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store, private");
-
+  if (req.method !== "GET" && req.method !== "POST") {
+    res.setHeader("Allow", "GET, POST");
+    return response(res, 405, { success: false, message: "Method not allowed" });
+  }
+  if (!isAdmin(req)) return response(res, 401, { success: false, message: "Unauthorized" });
   try {
-    /*
-      GET
-      Admin authentication is required here too.
-      This prevents the public endpoint from exposing
-      your admin-managed product configuration.
-    */
-    if (req.method === "GET") {
-      if (!isAdmin(req)) {
-        return res.status(403).json({
-          success: false,
-          message: "Admin access required",
-        });
-      }
-
-      const database = db();
-
-      const [settingsSnap, productsSnap] =
-        await Promise.all([
-          database.ref("adminSettings").get(),
-          database.ref("products").get(),
-        ]);
-
-      const settings = settingsSnap.exists()
-        ? settingsSnap.val()
-        : DEFAULT_SETTINGS;
-
-      const products = productsSnap.exists()
-        ? productsSnap.val()
-        : {};
-
-      return res.status(200).json({
-        success: true,
-        settings,
-        products,
-      });
-    }
-
-    if (req.method !== "POST") {
-      res.setHeader("Allow", "GET, POST");
-
-      return res.status(405).json({
-        success: false,
-        message: "Method not allowed",
-      });
-    }
-
-    if (!isAdmin(req)) {
-      return res.status(403).json({
-        success: false,
-        message: "Admin access required",
-      });
-    }
-
     const database = db();
+    if (req.method === "GET") {
+      const [settingsSnap, productsSnap] = await Promise.all([
+        database.ref("adminSettings").get(), database.ref("products").get(),
+      ]);
+      const settings = { ...DEFAULT_SETTINGS, ...(settingsSnap.exists() ? settingsSnap.val() : {}) };
+      settings.payments = { ...DEFAULT_SETTINGS.payments, ...(settings.payments || {}) };
+      settings.referral = { ...DEFAULT_SETTINGS.referral, ...(settings.referral || {}) };
+      return response(res, 200, { success: true, settings, products: productsSnap.exists() ? productsSnap.val() : {} });
+    }
+
     const body = req.body || {};
-    const action = String(body.action || "").trim();
-
-    /*
-      PAYMENT SETTINGS
-    */
+    const action = String(body.action || "");
+    const settingsRef = database.ref("adminSettings");
     if (action === "updatePayments") {
-      const currentSnap =
-        await database.ref("adminSettings").get();
-
-      const current = currentSnap.exists()
-        ? currentSnap.val()
-        : DEFAULT_SETTINGS;
-
-      const payments = body.payments || {};
-
-      const minDeposit = numberValue(
-        payments.minDeposit,
-        current.payments?.minDeposit ?? 1,
-        0.01
-      );
-
-      const maxDeposit = numberValue(
-        payments.maxDeposit,
-        current.payments?.maxDeposit ?? 100000,
-        0.01
-      );
-
-      const minWithdrawal = numberValue(
-        payments.minWithdrawal,
-        current.payments?.minWithdrawal ?? 1,
-        0.01
-      );
-
-      const maxWithdrawal = numberValue(
-        payments.maxWithdrawal,
-        current.payments?.maxWithdrawal ?? 100000,
-        0.01
-      );
-
-      if (maxDeposit < minDeposit) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Maximum deposit cannot be lower than minimum deposit",
-        });
-      }
-
-      if (maxWithdrawal < minWithdrawal) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Maximum withdrawal cannot be lower than minimum withdrawal",
-        });
-      }
-
-      const updated = {
-        ...current,
-
-        payments: {
-          depositEnabled:
-            typeof payments.depositEnabled === "boolean"
-              ? payments.depositEnabled
-              : Boolean(
-                  current.payments?.depositEnabled ?? true
-                ),
-
-          minDeposit,
-          maxDeposit,
-
-          withdrawalEnabled:
-            typeof payments.withdrawalEnabled === "boolean"
-              ? payments.withdrawalEnabled
-              : Boolean(
-                  current.payments?.withdrawalEnabled ?? true
-                ),
-
-          minWithdrawal,
-          maxWithdrawal,
-        },
-
-        updatedAt: Date.now(),
+      const payments = {
+        depositsEnabled: body.depositsEnabled === true || body.depositsEnabled === "true",
+        withdrawalsEnabled: body.withdrawalsEnabled === true || body.withdrawalsEnabled === "true",
       };
-
-      await database
-        .ref("adminSettings")
-        .set(updated);
-
-      return res.status(200).json({
-        success: true,
-        message: "Payment settings saved",
-        settings: updated,
-      });
+      await settingsRef.child("payments").update(payments);
+      return response(res, 200, { success: true, payments });
     }
-
-    /*
-      REFERRAL SETTINGS
-    */
     if (action === "updateReferral") {
-      const currentSnap =
-        await database.ref("adminSettings").get();
-
-      const current = currentSnap.exists()
-        ? currentSnap.val()
-        : DEFAULT_SETTINGS;
-
-      const percent = numberValue(
-        body.commissionPercent,
-        current.referral?.commissionPercent ?? 25,
-        0
-      );
-
-      if (percent > 100) {
-        return res.status(400).json({
-          success: false,
-          message: "Commission cannot exceed 100%",
-        });
-      }
-
-      const updated = {
-        ...current,
-
-        referral: {
-          commissionPercent: percent,
-        },
-
-        updatedAt: Date.now(),
+      const input = body.referral || body;
+      const referral = {
+        level1Percent: cleanPercent(input.level1Percent ?? input.commissionPercent, 25),
+        level2Percent: cleanPercent(input.level2Percent, 3),
+        level3Percent: cleanPercent(input.level3Percent, 1),
       };
-
-      await database
-        .ref("adminSettings")
-        .set(updated);
-
-      return res.status(200).json({
-        success: true,
-        message: "Referral settings saved",
-        settings: updated,
-      });
+      // Keep the legacy field for older frontend/API compatibility.
+      referral.commissionPercent = referral.level1Percent;
+      await settingsRef.child("referral").update(referral);
+      return response(res, 200, { success: true, referral });
     }
-
-    /*
-      ADD PRODUCT
-    */
     if (action === "addProduct") {
-      const product = cleanProduct(
-        body.product || {}
-      );
-
-      if (!product.name) {
-        return res.status(400).json({
-          success: false,
-          message: "Product name is required",
-        });
+      const product = cleanProduct(body.product || body);
+      if (!product.name || product.price <= 0 || product.dailyProfit < 0) {
+        return response(res, 400, { success: false, message: "Valid project name and price are required" });
       }
-
-      if (product.price <= 0) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Product price must be greater than 0",
-        });
+      if (product.projectType === "vip" && product.saleEndsAt === null) {
+        return response(res, 400, { success: false, message: "VIP project needs a valid sale deadline" });
       }
-
-      if (product.dailyProfit < 0) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Daily profit cannot be negative",
-        });
-      }
-
-      const productId = createProductId();
-
-      await database
-        .ref(`products/${productId}`)
-        .set({
-          productId,
-          ...product,
-          createdAt: Date.now(),
-        });
-
-      return res.status(200).json({
-        success: true,
-        message: "Product added",
-        productId,
-        product,
-      });
+      const ref = database.ref("products").push();
+      await ref.set({ ...product, id: ref.key, createdAt: Date.now() });
+      return response(res, 200, { success: true, product: { ...product, id: ref.key } });
     }
-
-    /*
-      UPDATE PRODUCT
-    */
     if (action === "updateProduct") {
-      const productId = String(
-        body.productId || ""
-      ).trim();
-
-      if (!productId) {
-        return res.status(400).json({
-          success: false,
-          message: "Product ID is required",
-        });
-      }
-
-      const productRef =
-        database.ref(`products/${productId}`);
-
-      const snap = await productRef.get();
-
-      if (!snap.exists()) {
-        return res.status(404).json({
-          success: false,
-          message: "Product not found",
-        });
-      }
-
-      const product = cleanProduct(
-        body.product || {},
-        snap.val()
-      );
-
-      if (!product.name) {
-        return res.status(400).json({
-          success: false,
-          message: "Product name is required",
-        });
-      }
-
-      if (product.price <= 0) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Product price must be greater than 0",
-        });
-      }
-
-      if (product.dailyProfit < 0) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Daily profit cannot be negative",
-        });
-      }
-
-      await productRef.update(product);
-
-      return res.status(200).json({
-        success: true,
-        message: "Product updated",
-        productId,
-        product,
-      });
+      const productId = String(body.productId || body.id || "").trim();
+      if (!productId) return response(res, 400, { success: false, message: "Project ID is required" });
+      const ref = database.ref(`products/${productId}`);
+      const snap = await ref.get();
+      if (!snap.exists()) return response(res, 404, { success: false, message: "Project not found" });
+      const product = cleanProduct(body.product || body, snap.val());
+      if (!product.name || product.price <= 0) return response(res, 400, { success: false, message: "Valid project name and price are required" });
+      if (product.projectType === "vip" && product.saleEndsAt === null) return response(res, 400, { success: false, message: "VIP project needs a valid sale deadline" });
+      await ref.update(product);
+      return response(res, 200, { success: true, product: { ...product, id: productId } });
     }
-
-    /*
-      DELETE PRODUCT
-    */
     if (action === "deleteProduct") {
-      const productId = String(
-        body.productId || ""
-      ).trim();
-
-      if (!productId) {
-        return res.status(400).json({
-          success: false,
-          message: "Product ID is required",
-        });
-      }
-
-      const productRef =
-        database.ref(`products/${productId}`);
-
-      const snap = await productRef.get();
-
-      if (!snap.exists()) {
-        return res.status(404).json({
-          success: false,
-          message: "Product not found",
-        });
-      }
-
-      await productRef.remove();
-
-      return res.status(200).json({
-        success: true,
-        message: "Product deleted",
-      });
+      const productId = String(body.productId || body.id || "").trim();
+      if (!productId) return response(res, 400, { success: false, message: "Project ID is required" });
+      const ref = database.ref(`products/${productId}`);
+      const snap = await ref.get();
+      if (!snap.exists()) return response(res, 404, { success: false, message: "Project not found" });
+      // Archive/deactivate instead of deleting so purchase history stays meaningful.
+      await ref.update({ active: false, archived: true, updatedAt: Date.now() });
+      return response(res, 200, { success: true, message: "Project deactivated" });
     }
-
-    return res.status(400).json({
-      success: false,
-      message: "Unknown admin action",
-    });
+    return response(res, 400, { success: false, message: "Unknown action" });
   } catch (error) {
-    console.error(
-      "NOIR admin settings error:",
-      error.code ||
-        error.message ||
-        "unknown"
-    );
-
-    return res.status(500).json({
-      success: false,
-      message: "Unable to process admin request",
-    });
+    console.error("NOIR admin settings error:", error.code || error.message || "unknown");
+    return response(res, 500, { success: false, message: "Unable to update admin settings" });
   }
 }
