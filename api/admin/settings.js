@@ -1,4 +1,4 @@
-import { db, getAuthenticatedUser } from "../_auth.js";
+import { db } from "../_auth.js";
 
 const DEFAULT_SETTINGS = {
   payments: {
@@ -12,15 +12,23 @@ const DEFAULT_SETTINGS = {
   },
 };
 
-function isAdmin(user) {
-  // Admin UID ko Vercel Environment Variable me rakhenge.
-  const adminUid = process.env.ADMIN_UID;
+function isAdmin(req) {
+  const username = process.env.ADMIN_USERNAME;
+  const password = process.env.ADMIN_PASSWORD;
 
-  return Boolean(
-    adminUid &&
-    user &&
-    user.uid &&
-    user.uid === adminUid
+  if (!username || !password) return false;
+
+  const receivedUsername = String(
+    req.headers["x-admin-username"] || ""
+  );
+
+  const receivedPassword = String(
+    req.headers["x-admin-password"] || ""
+  );
+
+  return (
+    receivedUsername === username &&
+    receivedPassword === password
   );
 }
 
@@ -38,16 +46,8 @@ export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store, private");
 
   try {
-    const user = await getAuthenticatedUser(req);
-
-    if (!user || !user.uid) {
-      return res.status(401).json({
-        success: false,
-        message: "Authentication required",
-      });
-    }
-
-    if (!isAdmin(user)) {
+    // Admin authentication
+    if (!isAdmin(req)) {
       return res.status(403).json({
         success: false,
         message: "Admin access required",
@@ -57,7 +57,7 @@ export default async function handler(req, res) {
     const database = db();
     const settingsRef = database.ref("adminSettings");
 
-    // GET = current settings
+    // GET current settings
     if (req.method === "GET") {
       const snap = await settingsRef.get();
 
@@ -76,9 +76,10 @@ export default async function handler(req, res) {
       });
     }
 
-    // POST = update settings
+    // POST update settings
     if (req.method === "POST") {
       const currentSnap = await settingsRef.get();
+
       const current = currentSnap.exists()
         ? currentSnap.val()
         : DEFAULT_SETTINGS;
@@ -125,7 +126,9 @@ export default async function handler(req, res) {
           depositEnabled:
             typeof payments.depositEnabled === "boolean"
               ? payments.depositEnabled
-              : Boolean(current.payments?.depositEnabled ?? true),
+              : Boolean(
+                  current.payments?.depositEnabled ?? true
+                ),
 
           minDeposit,
           maxDeposit,
@@ -133,14 +136,15 @@ export default async function handler(req, res) {
           withdrawalEnabled:
             typeof payments.withdrawalEnabled === "boolean"
               ? payments.withdrawalEnabled
-              : Boolean(current.payments?.withdrawalEnabled ?? true),
+              : Boolean(
+                  current.payments?.withdrawalEnabled ?? true
+                ),
 
           minWithdrawal,
           maxWithdrawal,
         },
 
         updatedAt: Date.now(),
-        updatedBy: user.uid,
       };
 
       await settingsRef.set(updatedSettings);
