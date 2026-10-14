@@ -134,10 +134,7 @@ export default async function handler(req, res) {
 
     if (!response.ok || !result.data || !result.data.track_id) {
       // Clear failure from OxaPay -> refund once.
-      console.error("OxaPay payout failed", {
-        httpStatus: response.status,
-        error: result.error || result.message || "Unknown error",
-      });
+      console.error("OxaPay payout failed: HTTP " + response.status + " | " + JSON.stringify(result.error || result.message || result));
 
       await walletRef.transaction((current) => {
         if (current === null) return current;
