@@ -123,7 +123,7 @@ export default async function handler(req, res) {
           amount,
           network,
           description: withdrawalId,
-          callback_url: baseUrl + "/api/oxapay-payout-webhook",
+          callback_url: baseUrl + "/api/oxapay-webhook",
         }),
       });
       result = await response.json().catch(() => ({}));
@@ -157,7 +157,7 @@ export default async function handler(req, res) {
       return res.status(502).json({ success: false, message: "Payout failed, balance returned" });
     }
 
-    // 5. Payout accepted by OxaPay. Final status arrives on the payout webhook.
+    // 5. Payout accepted by OxaPay. Final status arrives on the webhook.
     const trackId = String(result.data.track_id);
     await database.ref("payoutTracks/" + trackId).set(withdrawalId);
     await requestRef.update({
