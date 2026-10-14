@@ -138,15 +138,13 @@ export default async function handler(req, res) {
       return wallet;
     });
 
-    // 5. Mark order paid
-    await orderRef.transaction((current) => {
-      if (!current || current.status !== "pending") return;
-      current.status = "paid";
-      current.paidAt = Date.now();
-      current.updatedAt = Date.now();
-      current.providerAmount = paidAmount;
-      current.providerCurrency = String(data.currency).toUpperCase();
-      return current;
+    // 5. Mark the order paid (plain update; wallet credit above is already idempotent)
+    await orderRef.update({
+      status: "paid",
+      paidAt: Date.now(),
+      updatedAt: Date.now(),
+      providerAmount: paidAmount,
+      providerCurrency: String(data.currency).toUpperCase(),
     });
 
     console.log("WEBHOOK success: credited", orderId, expectedAmount);
