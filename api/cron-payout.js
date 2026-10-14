@@ -1,8 +1,7 @@
 import { db } from "./_auth.js";
 
 export default async function handler(req, res) {
-  // 1. Security Check: Vercel cronjob trigger karega is secret key ke sath
-  // Taaki koi hacker/user is link ko open karke free me balance na badha le
+  // CRON_SECRET security check
   const authHeader = req.headers.authorization;
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ success: false, message: "Unauthorized CRON request" });
@@ -11,21 +10,20 @@ export default async function handler(req, res) {
   try {
     const database = db();
     
-    // 2. Ek sath sabhi users ke projects aur unke wallets uthao (Fast & optimized)
+    // Ek saath projects aur wallets ka data fetch karna
     const [projectsSnap, walletsSnap] = await Promise.all([
       database.ref("user_projects").get(),
       database.ref("wallets").get()
     ]);
 
     if (!projectsSnap.exists()) {
-      return res.status(200).json({ success: true, message: "Koi active project nahi mila" });
+      return res.status(200).json({ success: true, message: "No active projects found" });
     }
 
     const updates = {};
     const timestamp = Date.now();
     const wallets = walletsSnap.exists() ? walletsSnap.val() : {};
 
-    // 3. Har user ke data par loop chalao
     projectsSnap.forEach(userNode => {
       const uid = userNode.key;
       let totalDailyProfit = 0;
@@ -34,15 +32,14 @@ export default async function handler(req, res) {
       Object.keys(userProjects).forEach(projectId => {
         const project = userProjects[projectId];
         
-        // Agar din bache hain (daysRemaining > 0), tabhi profit add karo
+        // Jiske din bache hain, uska profit jodo
         if (project.daysRemaining > 0) {
           totalDailyProfit += Number(project.dailyProfit);
-          // Din ko -1 kar do
           updates[`user_projects/${uid}/${projectId}/daysRemaining`] = project.daysRemaining - 1;
         }
       });
 
-      // 4. Agar user ka aaj ka profit 0 se zyada hai, toh wallet update karo
+      // Agar total profit 0 se jyada hai toh wallet me update karo
       if (totalDailyProfit > 0) {
         const currentBalance = wallets[uid] && wallets[uid].balance ? Number(wallets[uid].balance) : 0;
         const currentTotalProfit = wallets[uid] && wallets[uid].totalProfit ? Number(wallets[uid].totalProfit) : 0;
@@ -50,7 +47,7 @@ export default async function handler(req, res) {
         updates[`wallets/${uid}/balance`] = currentBalance + totalDailyProfit;
         updates[`wallets/${uid}/totalProfit`] = currentTotalProfit + totalDailyProfit;
         
-        // History ke liye ek entry depositOrders table me (Taaki History page me dikhe)
+        // History tab me dikhane ke liye log
         const logId = "profit_" + uid + "_" + timestamp;
         updates[`depositOrders/${logId}`] = {
           orderId: logId,
@@ -64,7 +61,7 @@ export default async function handler(req, res) {
       }
     });
 
-    // 5. Ek hi baar me poora database update (Firebase rate limit se bachne ke liye)
+    // Database par ek single write me saara kaam
     if (Object.keys(updates).length > 0) {
       await database.ref().update(updates);
     }
