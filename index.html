@@ -473,14 +473,21 @@ async function loadWalletBalance() {
     const response = await fetch("/api/wallet", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
     const result = await response.json();
     if (!response.ok || !result.success) throw new Error("wallet failed");
+    
     el.textContent = Number(result.balance).toLocaleString("en-US", { maximumFractionDigits: 2 }) + " USDT";
+    
     const wd = document.getElementById("wallet-withdrawn");
     if (wd) wd.textContent = Number(result.totalWithdrawn || 0).toLocaleString("en-US", { maximumFractionDigits: 2 }) + " USDT";
+    
+    const profitEl = document.querySelectorAll('.stat .value')[2];
+    if (profitEl) profitEl.textContent = Number(result.totalProfit || 0).toLocaleString("en-US", { maximumFractionDigits: 2 }) + " USDT";
+    
   } catch (error) {
     console.error("Wallet balance load failed", error);
     el.textContent = "—";
   }
 }
+
 
 async function syncSignedInUser(token) {
   const nameEl = document.getElementById("account-name");
