@@ -59,11 +59,12 @@ export default async function handler(req, res) {
       if (productsSnap.exists()) {
         productsSnap.forEach((child) => {
           const p = child.val();
-          if (p.active !== false && p.deleted !== true) products.push(p);
+          const saleOver = p.projectType === "vip" && num(p.saleEndsAt) > 0 && Date.now() > num(p.saleEndsAt);
+          if (p.active !== false && p.deleted !== true && !saleOver) products.push(p);
         });
       }
       const myProjects = myProjectsSnap.exists() ? Object.values(myProjectsSnap.val()) : [];
-      return res.status(200).json({ success: true, products, myProjects });
+      return res.status(200).json({ success: true, products, myProjects, serverTime: Date.now() });
     } catch (error) {
       return res.status(500).json({ success: false, message: "Failed to load projects" });
     }
@@ -100,6 +101,10 @@ export default async function handler(req, res) {
       return res.status(400).json({ success: false, message: "Project is currently unavailable" });
     }
 
+    if (product.projectType === "vip" && num(product.saleEndsAt) > 0 && Date.now() > num(product.saleEndsAt)) {
+      return res.status(400).json({ success: false, message: "This VIP sale has ended" });
+    }
+
     const price = num(product.price);
     const dailyProfit = num(product.dailyProfit);
     const validityDays = Math.floor(num(product.validityDays));
@@ -127,7 +132,7 @@ export default async function handler(req, res) {
     try {
       await database.ref().update({
         [`user_projects/${uid}/${purchaseId}`]: {
-          id: purchaseId, productId, name: product.name, price, dailyProfit,
+          id: purchaseId, productId, name: product.name, projectType: product.projectType === "vip" ? "vip" : "normal", price, dailyProfit,
           totalDays: validityDays, daysRemaining: validityDays, purchasedAt: timestamp,
         },
         [`depositOrders/${purchaseId}`]: {
