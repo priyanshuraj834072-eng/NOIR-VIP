@@ -88,13 +88,15 @@ input, select, textarea{transition:border-color .22s ease,box-shadow .22s ease,b
   <div class="stat"><div class="label">Total Withdrawal</div><div class="value" id="wallet-withdrawn">—</div><div class="note">Based on completed withdrawals</div></div>
  </div>
  <div class="notice"><strong>Live wallet data.</strong> Balance and withdrawal totals come from your verified wallet records. Invested and profit totals require the project purchase and income API to be connected.</div>
+ <div class="section-head"><h2>NOIR VIP Project</h2><button class="textbtn" onclick="openAvailableProjects()">View all&nbsp; ↗</button></div>
+ <article class="vip-card"><div class="vip-head"><div class="vip-brand"><span class="vip-logo">N</span><span>NOIR</span></div><span class="vip-live">VIP ACCESS</span></div><h2>NOIR VIP Project</h2><p>An exclusive NOIR experience is on its way. Project details will appear here after the launch is officially configured.</p><button class="vip-cta" onclick="showVipInfo()">Explore VIP&nbsp; ↗</button><div class="vip-status">✦ &nbsp; COMING SOON &nbsp; ✦</div></article>
 
  <div class="footer-note">NOIR · Balance and withdrawals reflect confirmed wallet records.</div>
 </section>
 <section id="product" class="page">
  <div class="eyebrow">Discover</div><h1 style="font-size:29px;letter-spacing:-.05em;margin:9px 0 0">Projects</h1><p style="color:#999;font-size:12px;line-height:1.6;margin:8px 0">Explore NOIR projects and review their details before purchase.</p>
  <div class="tabs"><button class="tab active" data-tab="available" onclick="setTab('available',this)">Available</button><button class="tab" data-tab="mine" onclick="setTab('mine',this)">My Projects <span id="mine-count">(0)</span></button></div>
-<div class="searchbox"><input id="search" placeholder="Search projects…" oninput="renderPlans()" aria-label="Search projects"></div><div class="cards" id="plans-list"></div></div>
+ <div id="available-pane"><article class="vip-card available-vip"><div class="vip-head"><div class="vip-brand"><span class="vip-logo">N</span><span>NOIR</span></div><span class="vip-live">VIP PROJECT</span></div><h2>NOIR VIP Project</h2><p>Premium project experience. Launch information will be published here when available.</p><button class="vip-cta" onclick="showVipInfo()">View details&nbsp; ↗</button><div class="vip-status">✦ &nbsp; COMING SOON &nbsp; ✦</div></article><div class="searchbox"><input id="search" placeholder="Search projects…" oninput="renderPlans()" aria-label="Search projects"></div><div class="cards" id="plans-list"></div></div>
  <div id="mine-pane" class="hidden"><div class="cards" id="mine-list"></div></div>
  <div class="notice">Purchase and payment processing are not connected yet. Buy Now is intentionally inactive until the payment setup is ready.</div>
 </section>
@@ -156,62 +158,17 @@ input, select, textarea{transition:border-color .22s ease,box-shadow .22s ease,b
 </div>
 
 <script>
-// ==========================================
-// 1. PROJECTS, VIP TIMER, & BUY CONFIRMATION
-// ==========================================
 let planData = [];
 let purchased = [];
-let pendingBuyId = null;
-
-// HTML for Confirmation Popup (Auto-injected)
-document.addEventListener("DOMContentLoaded", () => {
-  if(!document.getElementById('buy-confirm-overlay')) {
-    document.body.insertAdjacentHTML('beforeend', `
-    <div class="deposit-overlay" id="buy-confirm-overlay" role="dialog" onclick="if(event.target===this)closeBuyConfirm()">
-      <div class="deposit-panel" style="max-width:380px; text-align:center">
-        <h2 class="deposit-title" style="font-size:22px;margin-bottom:15px">Confirm Purchase</h2>
-        <div id="buy-confirm-details" style="background:#111;border:1px solid #333;border-radius:15px;padding:15px;margin-bottom:20px;font-size:13px;color:#ccc;line-height:1.7;text-align:left">
-        </div>
-        <div style="display:flex;gap:10px">
-          <button onclick="closeBuyConfirm()" style="flex:1;padding:13px;border-radius:12px;background:#222;border:1px solid #444;color:#fff;font-weight:700">Cancel</button>
-          <button id="buy-confirm-btn" onclick="executeBuy()" style="flex:1;padding:13px;border-radius:12px;background:linear-gradient(135deg,#f2f2f2,#a6a6a6);color:#111;border:0;font-weight:800">Confirm & Pay</button>
-        </div>
-      </div>
-    </div>
-    `);
-  }
-});
 
 function money(n) { return Number(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' USDT'; }
 
 function planCard(p, owned = false) {
   const isVip = p.projectType === 'vip';
-
-  // Agar VIP project hai aur abhi user ne nahi kharida (Market me dikhana hai)
-  if (isVip && !owned) {
-    const deadline = p.saleDeadlineDays ? p.createdAt + (p.saleDeadlineDays * 86400000) : null;
-    return `<article class="vip-card" data-deadline="${deadline}">
-      <div class="vip-head">
-        <div class="vip-brand"><span class="vip-logo">N</span><span>NOIR</span></div>
-        <span class="vip-live" style="color:#111; background:#ffd700; border-color:#ffd700; font-weight:800">VIP EXCLUSIVE</span>
-      </div>
-      <h2 style="margin-top:12px">${p.name}</h2>
-      <div class="product-details" style="border:0; margin-top:0; padding-top:0; margin-bottom:15px;">
-        <div class="detail-line"><span>Price</span><strong style="font-size:16px;color:#fff">${money(p.price)}</strong></div>
-        <div class="detail-line"><span>Daily Profit</span><strong style="color:#9bf0b9">${p.dailyProfit} USDT</strong></div>
-        <div class="detail-line"><span>Duration</span><strong>${p.validityDays} days</strong></div>
-        <div class="detail-line"><span>Limit</span><strong>${p.purchaseLimit || 1} per user</strong></div>
-      </div>
-      <button class="vip-cta" type="button" onclick="openBuyConfirm('${p.productId}')" style="background: linear-gradient(135deg, #ffd700, #b8860b); color: #000; width: 100%; border: 0 !important; font-weight: 800; text-align: center; font-size: 13px; padding:13px; border-radius:12px; cursor:pointer;">Buy Now&nbsp; ↗</button>
-      <div class="vip-status timer-display" style="color:#ffd700; margin-top:14px; font-size:11px; font-weight:750; text-align:center;">✦ &nbsp; CALCULATING TIME... &nbsp; ✦</div>
-    </article>`;
-  }
-
-  // Normal Project (Ya kharida hua VIP project jo 'My Projects' me normal card ki tarah dikhega)
   return `<article class="plan" style="${isVip ? 'border-color: #ffd70055;' : ''}">
     <div class="plan-top">
       <div>
-        <div class="eyebrow">${owned ? 'My Project' : 'NOIR Collection'}</div>
+        <div class="eyebrow">${owned ? 'My Project' : (isVip ? 'VIP Collection' : 'NOIR Collection')}</div>
         <div class="plan-name" style="margin-top:7px">${p.name}</div>
       </div>
       <span class="tag" style="${isVip ? 'color:#ffd700; border-color:#ffd70055;' : ''}">${isVip ? 'VIP' : 'NORMAL'}</span>
@@ -223,95 +180,8 @@ function planCard(p, owned = false) {
       <div class="detail-line"><span>Limit</span><strong>${p.purchaseLimit || 1} per user</strong></div>
     </div>
     <div class="sub">${owned ? 'Profit is automatically credited daily at 7:00 PM.' : (p.description || '')}</div>
-    ${owned ? '' : `<button class="buy-btn" type="button" onclick="openBuyConfirm('${p.productId}')">Buy Now&nbsp; ↗</button>`}
+    ${owned ? '' : `<button class="buy-btn" type="button" onclick="buyProject('${p.productId}', this)" style="${isVip ? 'background: linear-gradient(135deg, #ffd700, #b8860b); color: #000;' : ''}">Buy Now&nbsp; ↗</button>`}
   </article>`;
-}
-
-// VIP Timer Logic (Har second update hoga)
-setInterval(() => {
-  document.querySelectorAll('.vip-card[data-deadline]').forEach(card => {
-    const deadline = Number(card.getAttribute('data-deadline'));
-    const display = card.querySelector('.timer-display');
-    const btn = card.querySelector('.vip-cta');
-    if (!deadline) {
-      if (display) display.textContent = "✦ VIP PROJECT ✦";
-      return;
-    }
-    const now = Date.now();
-    const diff = deadline - now;
-    if (diff <= 0) {
-      if (display) { display.textContent = "✦ SALE ENDED ✦"; display.style.color = "#ff6b6b"; }
-      if (btn) { btn.disabled = true; btn.innerHTML = "Sale Closed"; btn.style.background = "#333"; btn.style.color = "#888"; btn.style.cursor = "not-allowed"; btn.onclick = null; }
-    } else {
-      const d = Math.floor(diff / (1000 * 60 * 60 * 24));
-      const h = Math.floor((diff / (1000 * 60 * 60)) % 24);
-      const m = Math.floor((diff / 1000 / 60) % 60);
-      const s = Math.floor((diff / 1000) % 60);
-      if (display) display.textContent = `✦ ENDS IN: ${d}d ${h}h ${m}m ${s}s ${s%2===0?'✦':'✧'}`;
-    }
-  });
-}, 1000);
-
-// Buy Confirmation Popup Logic
-function openBuyConfirm(id) {
-  if (typeof getSessionToken !== 'function' || !getSessionToken()) { toast('Please sign in to purchase'); if(typeof openAuth === 'function') openAuth(); return; }
-  const p = planData.find(x => x.productId === id);
-  if(!p) return;
-  pendingBuyId = id;
-  const isVip = p.projectType === 'vip';
-  document.getElementById('buy-confirm-details').innerHTML = `
-    <strong style="color:#fff;font-size:16px;display:block;margin-bottom:10px">${p.name} ${isVip ? '<span style="color:#000;background:#ffd700;font-size:9px;padding:3px 7px;border-radius:10px;margin-left:7px;vertical-align:middle;font-weight:900">VIP</span>' : ''}</strong>
-    <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>Price:</span><strong style="color:#fff">${p.price} USDT</strong></div>
-    <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>Daily Profit:</span><strong style="color:#9bf0b9">${p.dailyProfit} USDT</strong></div>
-    <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>Duration:</span><strong style="color:#fff">${p.validityDays} Days</strong></div>
-    <div style="margin-top:12px;padding-top:12px;border-top:1px dashed #444;color:#aaa;font-size:11px;text-align:center">
-      Payment will be instantly deducted from your NOIR Wallet balance.
-    </div>
-  `;
-  document.getElementById('buy-confirm-overlay').classList.add('is-open');
-  document.body.style.overflow = 'hidden';
-}
-
-function closeBuyConfirm() {
-  const overlay = document.getElementById('buy-confirm-overlay');
-  if(overlay) overlay.classList.remove('is-open');
-  document.body.style.overflow = '';
-  pendingBuyId = null;
-}
-
-// Final Execute Purchase (API call)
-async function executeBuy() {
-  if(!pendingBuyId) return;
-  const token = getSessionToken();
-  if (!token) return;
-  
-  const btn = document.getElementById('buy-confirm-btn');
-  const originalText = btn.innerHTML;
-  btn.disabled = true; 
-  btn.textContent = 'Processing...';
-  
-  try {
-    const res = await fetch('/api/project', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ productId: pendingBuyId })
-    });
-    const data = await res.json();
-    
-    if (!res.ok || !data.success) throw new Error(data.message || 'Purchase failed');
-    
-    toast('Project purchased successfully!');
-    closeBuyConfirm();
-    await fetchLiveProjects(); 
-    if (typeof loadWalletBalance === 'function') await loadWalletBalance(); 
-    go('product');
-    setTab('mine', document.querySelector('[data-tab=mine]'));
-  } catch (err) {
-    toast(err.message);
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = originalText;
-  }
 }
 
 async function fetchLiveProjects() {
@@ -334,50 +204,47 @@ async function fetchLiveProjects() {
 function renderPlans() {
   let q = (document.getElementById('search')?.value || '').toLowerCase();
   let list = planData.filter(p => p.name.toLowerCase().includes(q) || (p.projectType && p.projectType.toLowerCase().includes(q)));
-  
-  // VIP projects hamesha sabse upar dikhenge
-  list.sort((a, b) => {
-    if (a.projectType === 'vip' && b.projectType !== 'vip') return -1;
-    if (a.projectType !== 'vip' && b.projectType === 'vip') return 1;
-    return 0;
-  });
-
-  // Projects Page ki List
-  const listEl = document.getElementById('plans-list');
-  if (listEl) {
-    listEl.innerHTML = list.length ? list.map(p => planCard(p)).join('') : '<div class="empty">No available projects.</div>';
-  }
-  
-  // Home Page par VIP Card ko render karna (Agar koi active VIP ho)
-  renderHomeVip(list);
-  
+  document.getElementById('plans-list').innerHTML = list.length ? list.map(p => planCard(p)).join('') : '<div class="empty">No available projects.</div>';
   renderMine();
 }
-
-function renderHomeVip(list) {
-  // Check karte hain ki Home page wala div exist karta hai ya nahi
-  const homeVipContainer = document.querySelector('#home .section-head')?.nextElementSibling;
-  
-  // Pehle check karte hain ki database mein koi active VIP project hai?
-  const activeVip = list.find(p => p.projectType === 'vip');
-
-  if (activeVip && homeVipContainer) {
-    // Agar active VIP hai toh Home Page wala area Real VIP card se replace kar do
-    homeVipContainer.outerHTML = planCard(activeVip);
-  } else if (!activeVip && homeVipContainer && homeVipContainer.tagName === 'ARTICLE') {
-     // Agar koi VIP project active nahi hai toh Home page par se purana nakli card ya purana VIP hata do
-     homeVipContainer.style.display = 'none';
-     const sectionHead = document.querySelector('#home .section-head');
-     if(sectionHead) sectionHead.style.display = 'none'; // Heading bhi chhupa do
-  }
-}
-
 
 function renderMine() {
   const countEl = document.getElementById('mine-count');
   if (countEl) countEl.textContent = '(' + purchased.length + ')';
   const listEl = document.getElementById('mine-list');
   if (listEl) listEl.innerHTML = purchased.length ? purchased.map(p => planCard(p, true)).join('') : '<div class="empty"><div class="symbol">◇</div>No active projects yet.</div>';
+}
+
+async function buyProject(productId, btn) {
+  if (typeof getSessionToken !== 'function') return;
+  const token = getSessionToken();
+  if (!token) { toast('Please sign in to purchase'); if(typeof openAuth === 'function') openAuth(); return; }
+  
+  const originalText = btn.innerHTML;
+  btn.disabled = true; 
+  btn.textContent = 'Processing...';
+  
+  try {
+    const res = await fetch('/api/project', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ productId })
+    });
+    const data = await res.json();
+    
+    if (!res.ok || !data.success) throw new Error(data.message || 'Purchase failed');
+    
+    toast('Project purchased successfully!');
+    await fetchLiveProjects(); 
+    if (typeof loadWalletBalance === 'function') await loadWalletBalance(); 
+    go('product');
+    setTab('mine', document.querySelector('[data-tab=mine]'));
+  } catch (err) {
+    toast(err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalText;
+  }
 }
 
 function updateHomeStats() {
@@ -423,7 +290,7 @@ function toast(msg) {
 
 function showVipInfo() { go('product'); document.getElementById('search').value = 'VIP'; renderPlans(); }
 
-// --- REFERRAL & TEAM FUNCTIONS ---
+// --- RESTORED MISSING FUNCTIONS FOR REFERRAL & TEAM ---
 let noirTeamData={1:[],2:[],3:[]};let noirTeamLoaded=false;let noirTeamLoading=false;
 async function loadTeamData(){
   if(noirTeamLoading)return;
@@ -463,7 +330,7 @@ function setTeamLevel(level,btn){
 function escapeTeamText(value){return String(value).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));}
 
 function setReferralPreview(uid, savedNoirId){
-  const id = typeof savedNoirId === 'string' && /^NR-[A-Z0-9]+$/.test(savedNoirId) ? savedNoirId.toUpperCase() : null;
+  const id = typeof savedNoirId === 'string' && /^NR-[A-Z0-9]+$/i.test(savedNoirId) ? savedNoirId.toUpperCase() : null;
   const idEl = document.getElementById('public-user-id');
   const linkEl = document.getElementById('ref-link');
   if(!idEl || !linkEl) return;
@@ -491,7 +358,6 @@ async function copyReferral(){
 // Initialize Projects on Load
 fetchLiveProjects();
 </script>
-
 
 <script>
 const statusEl = document.getElementById("auth-status");
