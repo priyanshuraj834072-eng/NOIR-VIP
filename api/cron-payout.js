@@ -1,5 +1,4 @@
 import { db } from "./_auth.js";
-import { timingSafeEqual } from "crypto";
 
 const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 const round = (n) => Math.round(n * 1e6) / 1e6;
@@ -10,9 +9,12 @@ const istDate = () => new Date(Date.now() + 330 * 60000).toISOString().slice(0, 
 function authorized(req) {
   const secret = process.env.CRON_SECRET;
   if (!secret) return false; // secret set na ho to sab block
-  const got = Buffer.from(String(req.headers.authorization || ""));
-  const want = Buffer.from(`Bearer ${secret}`);
-  return got.length === want.length && timingSafeEqual(got, want);
+  const got = String(req.headers.authorization || "");
+  const want = `Bearer ${secret}`;
+  if (got.length !== want.length) return false;
+  let diff = 0;
+  for (let i = 0; i < got.length; i++) diff |= got.charCodeAt(i) ^ want.charCodeAt(i);
+  return diff === 0;
 }
 
 async function acquireLock(database, key, ttlMs) {
