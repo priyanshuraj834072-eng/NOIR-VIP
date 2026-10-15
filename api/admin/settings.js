@@ -1,188 +1,174 @@
-import { getAuthenticatedUser, db } from "./_auth.js";
+import { db } from "../_auth.js";
 
-const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
-const round = (n) => Math.round(n * 1e6) / 1e6;
-const createId = () => "pr_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
-const pct = (v, d) => (v === undefined || v === null ? d : Math.min(100, Math.max(0, num(v))));
+const DEFAULT_SETTINGS = {
+  payments: {
+    depositEnabled: true, minDeposit: 1, maxDeposit: 100000,
+    withdrawalEnabled: true, minWithdrawal: 1, maxWithdrawal: 100000,
+  },
+  referral: { commissionPercent: 25, level2Percent: 3, level3Percent: 1 },
+};
 
-// Per-user lock: ek time par ek hi purchase (double click / parallel request block)
-async function acquireLock(database, key, ttlMs = 20000) {
-  const ref = database.ref(`locks/${key}`);
-  const now = Date.now();
-  let got = false;
-  const r = await ref.transaction((cur) => {
-    got = false;
-    if (cur && now - num(cur) < ttlMs) return; // lock abhi active hai -> abort
-    got = true;
-    return now;
-  });
-  return r.committed && got ? ref : null;
-}
-const releaseLock = async (ref) => { try { await ref.remove(); } catch (_) {} };
-
-// Atomic wallet debit: balance kam ho to false
-async function debitWallet(database, uid, price) {
-  let ok = false;
-  await database.ref(`wallets/${uid}`).transaction((w) => {
-    ok = false;
-    const cur = w || {};
-    const bal = num(cur.balance);
-    if (bal < price) return w === null ? { balance: 0 } : undefined;
-    ok = true;
-    return { ...cur, balance: round(bal - price), totalInvested: round(num(cur.totalInvested) + price) };
-  });
-  return ok;
+function safeEqual(a, b) {
+  a = String(a || "");
+  b = String(b || "");
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
 }
 
-// Atomic wallet credit
-async function creditWallet(database, uid, amount, extraField) {
-  await database.ref(`wallets/${uid}`).transaction((w) => {
-    const cur = w || {};
-    const next = { ...cur, balance: round(num(cur.balance) + amount) };
-    if (extraField) next[extraField] = round(num(cur[extraField]) + amount);
-    return next;
-  });
+function isAdmin(req) {
+  const username = process.env.ADMIN_USERNAME;
+  const password = process.env.ADMIN_PASSWORD;
+  if (!username || !password) return false;
+  return safeEqual(req.headers["x-admin-username"], username) && safeEqual(req.headers["x-admin-password"], password);
 }
+
+function numberValue(value, fallback, min = 0) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < min) return fallback;
+  return Math.round(n * 1000000) / 1000000;
+}
+
+function cleanProduct(product, existing = {}) {
+  return {
+    name: String(product.name ?? existing.name ?? "").trim(),
+    description: String(product.description ?? existing.description ?? "").trim(),
+    price: numberValue(product.price, existing.price ?? 0, 0.01),
+    dailyProfit: numberValue(product.dailyProfit, existing.dailyProfit ?? 0, 0),
+    validityDays: Math.floor(numberValue(product.validityDays, existing.validityDays ?? 1, 1)),
+    purchaseLimit: Math.floor(numberValue(product.purchaseLimit, existing.purchaseLimit ?? 1, 1)),
+    active: typeof product.active === "boolean" ? product.active : existing.active !== false,
+    updatedAt: Date.now(),
+  };
+}
+
+function validateProduct(product) {
+  if (!product.name) return "Product name is required";
+  if (product.price <= 0) return "Product price must be greater than 0";
+  if (product.dailyProfit < 0) return "Daily profit cannot be negative";
+  return null;
+}
+
+const createProductId = () =>
+  ("product_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 10)).toUpperCase();
+
+const fail = (res, code, message) => res.status(code).json({ success: false, message });
 
 export default async function handler(req, res) {
-  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Cache-Control", "no-store, private");
 
-  if (req.method === "GET") {
-    try {
-      const auth = await getAuthenticatedUser(req);
-      const database = db();
-      const [productsSnap, myProjectsSnap] = await Promise.all([
-        database.ref("products").get(),
-        auth ? database.ref(`user_projects/${auth.uid}`).get() : Promise.resolve({ exists: () => false }),
-      ]);
-      const products = [];
-      if (productsSnap.exists()) {
-        productsSnap.forEach((child) => {
-          const p = child.val();
-          if (p.active !== false && p.deleted !== true) products.push(p);
-        });
-      }
-      const myProjects = myProjectsSnap.exists() ? Object.values(myProjectsSnap.val()) : [];
-      return res.status(200).json({ success: true, products, myProjects });
-    } catch (error) {
-      return res.status(500).json({ success: false, message: "Failed to load projects" });
-    }
-  }
-
-  if (req.method !== "POST") {
-    res.setHeader("Allow", "GET, POST");
-    return res.status(405).json({ success: false, message: "Method not allowed" });
-  }
-
-  let lockRef = null;
   try {
-    const auth = await getAuthenticatedUser(req);
-    if (!auth || !auth.uid) return res.status(401).json({ success: false, message: "Please log in first" });
+    if (req.method === "GET") {
+      if (!isAdmin(req)) return fail(res, 403, "Admin access required");
+      const database = db();
+      const [settingsSnap, productsSnap] = await Promise.all([
+        database.ref("adminSettings").get(),
+        database.ref("products").get(),
+      ]);
+      const settings = settingsSnap.exists() ? settingsSnap.val() : DEFAULT_SETTINGS;
+      const all = productsSnap.exists() ? productsSnap.val() : {};
+      const products = {};
+      Object.keys(all).forEach((id) => { if (all[id] && !all[id].deleted) products[id] = all[id]; }); // soft-deleted hide
+      return res.status(200).json({ success: true, settings, products });
+    }
 
-    const productId = String((req.body || {}).productId || "").trim();
-    if (!productId) return res.status(400).json({ success: false, message: "Product ID required" });
+    if (req.method !== "POST") {
+      res.setHeader("Allow", "GET, POST");
+      return fail(res, 405, "Method not allowed");
+    }
+    if (!isAdmin(req)) return fail(res, 403, "Admin access required");
 
     const database = db();
-    const uid = auth.uid;
+    const body = req.body || {};
+    const action = String(body.action || "").trim();
 
-    lockRef = await acquireLock(database, `purchase_${uid}`);
-    if (!lockRef) return res.status(429).json({ success: false, message: "Another purchase is in progress. Please wait." });
+    if (action === "updatePayments") {
+      const currentSnap = await database.ref("adminSettings").get();
+      const current = currentSnap.exists() ? currentSnap.val() : DEFAULT_SETTINGS;
+      const p = body.payments || {};
+      const c = current.payments || {};
 
-    const [productSnap, myProjectsSnap, settingsSnap] = await Promise.all([
-      database.ref(`products/${productId}`).get(),
-      database.ref(`user_projects/${uid}`).get(),
-      database.ref("adminSettings/referral").get(),
-    ]);
+      const minDeposit = numberValue(p.minDeposit, c.minDeposit ?? 1, 0.01);
+      const maxDeposit = numberValue(p.maxDeposit, c.maxDeposit ?? 100000, 0.01);
+      const minWithdrawal = numberValue(p.minWithdrawal, c.minWithdrawal ?? 1, 0.01);
+      const maxWithdrawal = numberValue(p.maxWithdrawal, c.maxWithdrawal ?? 100000, 0.01);
 
-    if (!productSnap.exists()) return res.status(404).json({ success: false, message: "Project not found" });
-    const product = productSnap.val();
-    if (product.active === false || product.deleted === true) {
-      return res.status(400).json({ success: false, message: "Project is currently unavailable" });
-    }
+      if (maxDeposit < minDeposit) return fail(res, 400, "Maximum deposit cannot be lower than minimum deposit");
+      if (maxWithdrawal < minWithdrawal) return fail(res, 400, "Maximum withdrawal cannot be lower than minimum withdrawal");
 
-    const price = num(product.price);
-    const dailyProfit = num(product.dailyProfit);
-    const validityDays = Math.floor(num(product.validityDays));
-    const limit = Math.floor(num(product.purchaseLimit)) || 1;
-    if (price <= 0 || validityDays < 1) return res.status(400).json({ success: false, message: "Invalid project configuration" });
-
-    let activeCount = 0;
-    if (myProjectsSnap.exists()) {
-      myProjectsSnap.forEach((child) => {
-        const p = child.val();
-        if (p.productId === productId && num(p.daysRemaining) > 0) activeCount++;
-      });
-    }
-    if (activeCount >= limit) {
-      return res.status(400).json({ success: false, message: `Limit reached. You can only have ${limit} active at a time.` });
-    }
-
-    // 1) Atomic paisa katna
-    const debited = await debitWallet(database, uid, price);
-    if (!debited) return res.status(400).json({ success: false, message: "Insufficient USDT balance" });
-
-    // 2) Project + history likhna (fail ho to refund)
-    const purchaseId = createId();
-    const timestamp = Date.now();
-    try {
-      await database.ref().update({
-        [`user_projects/${uid}/${purchaseId}`]: {
-          id: purchaseId, productId, name: product.name, price, dailyProfit,
-          totalDays: validityDays, daysRemaining: validityDays, purchasedAt: timestamp,
+      const updated = {
+        ...current,
+        payments: {
+          depositEnabled: typeof p.depositEnabled === "boolean" ? p.depositEnabled : Boolean(c.depositEnabled ?? true),
+          minDeposit, maxDeposit,
+          withdrawalEnabled: typeof p.withdrawalEnabled === "boolean" ? p.withdrawalEnabled : Boolean(c.withdrawalEnabled ?? true),
+          minWithdrawal, maxWithdrawal,
         },
-        [`depositOrders/${purchaseId}`]: {
-          orderId: purchaseId, uid, type: "purchase", amount: -price, currency: "USDT", status: "completed", createdAt: timestamp,
-        },
-      });
-    } catch (err) {
-      console.error("Purchase write failed, refunding:", err);
-      await database.ref(`wallets/${uid}`).transaction((w) => {
-        const cur = w || {};
-        return { ...cur, balance: round(num(cur.balance) + price), totalInvested: round(Math.max(0, num(cur.totalInvested) - price)) };
-      });
-      return res.status(500).json({ success: false, message: "Transaction failed" });
+        updatedAt: Date.now(),
+      };
+      await database.ref("adminSettings").set(updated);
+      return res.status(200).json({ success: true, message: "Payment settings saved", settings: updated });
     }
 
-    // 3) Referral commission: har level ko ek purchase par sirf ek baar
-    try {
-      const ref = settingsSnap.exists() ? settingsSnap.val() : {};
-      const percents = [pct(ref.commissionPercent, 25), pct(ref.level2Percent, 3), pct(ref.level3Percent, 1)];
-      const visited = new Set([uid]);
-      let currentUid = uid;
+    if (action === "updateReferral") {
+      const currentSnap = await database.ref("adminSettings").get();
+      const current = currentSnap.exists() ? currentSnap.val() : DEFAULT_SETTINGS;
+      const r = current.referral || {};
 
-      for (let i = 0; i < 3; i++) {
-        const attrSnap = await database.ref(`referralAttributions/${currentUid}`).get();
-        if (!attrSnap.exists()) break;
-        const uplineUid = attrSnap.val().referrerUid;
-        if (!uplineUid || visited.has(uplineUid)) break; // self-referral / loop block
-        visited.add(uplineUid);
-        currentUid = uplineUid;
+      // Pehle level2/level3 overwrite hokar delete ho jaate the; ab preserve hote hain
+      const l1 = numberValue(body.commissionPercent, r.commissionPercent ?? 25, 0);
+      const l2 = numberValue(body.level2Percent, r.level2Percent ?? 3, 0);
+      const l3 = numberValue(body.level3Percent, r.level3Percent ?? 1, 0);
 
-        if (percents[i] <= 0) continue;
-        const commAmount = round((price * percents[i]) / 100);
-        if (commAmount <= 0) continue;
+      if (l1 > 100 || l2 > 100 || l3 > 100) return fail(res, 400, "Commission cannot exceed 100%");
+      if (l1 + l2 + l3 > 100) return fail(res, 400, "Total commission cannot exceed 100%");
 
-        const commLogId = `comm_${purchaseId}_L${i + 1}`;
-        let claimed = false;
-        await database.ref(`depositOrders/${commLogId}`).transaction((cur) => {
-          claimed = false;
-          if (cur !== null) return; // already paid
-          claimed = true;
-          return { orderId: commLogId, uid: uplineUid, type: "commission", amount: commAmount, currency: "USDT", status: "completed", fromUid: uid, level: i + 1, createdAt: timestamp };
-        });
-        if (claimed) await creditWallet(database, uplineUid, commAmount, "totalCommission");
-      }
-    } catch (err) {
-      // Purchase ho chuka hai; commission error ko log karo, user ko fail mat dikhao
-      console.error("Commission error for", purchaseId, err);
-      await database.ref(`failedCommissions/${purchaseId}`).set({ uid, purchaseId, price, at: Date.now() }).catch(() => {});
+      const updated = {
+        ...current,
+        referral: { commissionPercent: l1, level2Percent: l2, level3Percent: l3 },
+        updatedAt: Date.now(),
+      };
+      await database.ref("adminSettings").set(updated);
+      return res.status(200).json({ success: true, message: "Referral settings saved", settings: updated });
     }
 
-    return res.status(200).json({ success: true, message: "Project purchased successfully!" });
+    if (action === "addProduct") {
+      const product = cleanProduct(body.product || {});
+      const err = validateProduct(product);
+      if (err) return fail(res, 400, err);
+      const productId = createProductId();
+      await database.ref(`products/${productId}`).set({ productId, ...product, createdAt: Date.now() });
+      return res.status(200).json({ success: true, message: "Product added", productId, product });
+    }
+
+    if (action === "updateProduct") {
+      const productId = String(body.productId || "").trim();
+      if (!productId) return fail(res, 400, "Product ID is required");
+      const productRef = database.ref(`products/${productId}`);
+      const snap = await productRef.get();
+      if (!snap.exists() || snap.val().deleted) return fail(res, 404, "Product not found");
+      const product = cleanProduct(body.product || {}, snap.val());
+      const err = validateProduct(product);
+      if (err) return fail(res, 400, err);
+      await productRef.update(product);
+      return res.status(200).json({ success: true, message: "Product updated", productId, product });
+    }
+
+    // SOFT DELETE: product hide hota hai, par user_projects (users ki purchases) bilkul touch nahi hoti
+    if (action === "deleteProduct") {
+      const productId = String(body.productId || "").trim();
+      if (!productId) return fail(res, 400, "Product ID is required");
+      const productRef = database.ref(`products/${productId}`);
+      const snap = await productRef.get();
+      if (!snap.exists()) return fail(res, 404, "Product not found");
+      await productRef.update({ active: false, deleted: true, deletedAt: Date.now() });
+      return res.status(200).json({ success: true, message: "Product deleted" });
+    }
+
+    return fail(res, 400, "Unknown admin action");
   } catch (error) {
-    console.error("Purchase error:", error);
-    return res.status(500).json({ success: false, message: "Transaction failed" });
-  } finally {
-    if (lockRef) await releaseLock(lockRef);
+    console.error("NOIR admin settings error:", error.code || error.message || "unknown");
+    return fail(res, 500, "Unable to process admin request");
   }
 }
