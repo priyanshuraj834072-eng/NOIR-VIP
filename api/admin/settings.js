@@ -31,7 +31,25 @@ function numberValue(value, fallback, min = 0) {
 }
 
 function cleanProduct(product, existing = {}) {
+  const projectType =
+    product.projectType === "vip" || product.projectType === "normal"
+      ? product.projectType
+      : existing.projectType === "vip" ? "vip" : "normal";
+  const deadlineDays = projectType === "vip"
+    ? Math.floor(numberValue(product.saleDeadlineDays, existing.saleDeadlineDays ?? 0, 0))
+    : 0;
+  // Deadline wahi rahe to purani end-date, badli ya naya VIP ho to ab se ginti shuru
+  const sameDeadline =
+    existing.projectType === "vip" && Number(existing.saleEndsAt) > 0 &&
+    Number(existing.saleDeadlineDays) === deadlineDays;
+  const saleEndsAt = deadlineDays > 0
+    ? (sameDeadline ? Number(existing.saleEndsAt) : Date.now() + deadlineDays * 86400000)
+    : null;
+
   return {
+    projectType,
+    saleDeadlineDays: deadlineDays > 0 ? deadlineDays : null,
+    saleEndsAt,
     name: String(product.name ?? existing.name ?? "").trim(),
     description: String(product.description ?? existing.description ?? "").trim(),
     price: numberValue(product.price, existing.price ?? 0, 0.01),
