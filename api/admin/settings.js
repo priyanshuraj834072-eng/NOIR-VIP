@@ -151,6 +151,30 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, message: "Referral settings saved", settings: updated });
     }
 
+    if (action === "updateSupport") {
+      const currentSnap = await database.ref("adminSettings").get();
+      const current = currentSnap.exists() ? currentSnap.val() : DEFAULT_SETTINGS;
+
+      let telegramUsername = String(body.telegramUsername || "").trim()
+        .replace(/^https?:\/\/(t|telegram)\.me\//i, "").replace(/^@/, "");
+      if (telegramUsername && !/^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(telegramUsername)) {
+        return fail(res, 400, "Telegram username must be 5-32 characters: letters, numbers or underscore");
+      }
+
+      const channelLink = String(body.channelLink || "").trim();
+      if (channelLink && !/^https:\/\/(t|telegram)\.me\/[A-Za-z0-9_+\-\/]{3,100}$/i.test(channelLink)) {
+        return fail(res, 400, "Channel link must look like https://t.me/your_channel");
+      }
+
+      const updated = {
+        ...current,
+        support: { telegramUsername, channelLink },
+        updatedAt: Date.now(),
+      };
+      await database.ref("adminSettings").set(updated);
+      return res.status(200).json({ success: true, message: "Support settings saved", settings: updated });
+    }
+
     if (action === "addProduct") {
       const product = cleanProduct(body.product || {});
       const err = validateProduct(product);
