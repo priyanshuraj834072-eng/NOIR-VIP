@@ -136,7 +136,7 @@ export default async function handler(req, res) {
           totalDays: validityDays, daysRemaining: validityDays, purchasedAt: timestamp,
         },
         [`depositOrders/${purchaseId}`]: {
-          orderId: purchaseId, uid, type: "purchase", amount: -price, currency: "USDT", status: "completed", createdAt: timestamp,
+          orderId: purchaseId, uid, type: "purchase", projectName: String(product.name || ""), amount: -price, currency: "USDT", status: "completed", createdAt: timestamp,
         },
       });
     } catch (err) {
