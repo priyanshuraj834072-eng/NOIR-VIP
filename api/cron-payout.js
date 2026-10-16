@@ -5,6 +5,76 @@ const round = (n) => Math.round(n * 1e6) / 1e6;
 
 // India (IST) ki date, taaki "aaj" ka matlab 7 PM IST wala din ho
 const istDate = () => new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
+const istNow = () => {
+  const d = new Date(Date.now() + 330 * 60000);
+  return { date: d.toISOString().slice(0, 10), month: d.toISOString().slice(0, 7), day: d.getUTCDate() };
+};
+
+// ---------------- Monthly salary ----------------
+function normalizeSalary(raw) {
+  const cfg = raw && typeof raw === "object" ? raw : { enabled: true, payDay: 20, tiers: [{ referrals: 30, amount: 90 }] };
+  const tiers = (Array.isArray(cfg.tiers) ? cfg.tiers : [])
+    .map((t) => ({ referrals: Math.floor(num(t && t.referrals)), amount: num(t && t.amount) }))
+    .filter((t) => t.referrals >= 1 && t.amount > 0)
+    .sort((a, b) => a.referrals - b.referrals);
+  return { enabled: cfg.enabled !== false, payDay: Math.min(28, Math.max(1, Math.floor(num(cfg.payDay)) || 20)), tiers };
+}
+
+async function paySalary(database, uid, amount, monthKey) {
+  // Ek mahine me ek user ko ek hi baar (cron do baar chale tab bhi)
+  let claimed = false;
+  await database.ref(`salaryPaid/${monthKey}/${uid}`).transaction((cur) => {
+    claimed = false;
+    if (cur !== null) return;
+    claimed = true;
+    return { amount, at: Date.now() };
+  });
+  if (!claimed) return 0;
+
+  try {
+    await database.ref(`wallets/${uid}`).transaction((w) => {
+      const cur = w || {};
+      return { ...cur, balance: round(num(cur.balance) + amount), totalSalary: round(num(cur.totalSalary) + amount) };
+    });
+    const logId = `salary_${uid}_${monthKey}`;
+    await database.ref(`depositOrders/${logId}`).set({
+      orderId: logId, uid, type: "salary", amount, currency: "USDT", status: "completed", createdAt: Date.now(),
+    });
+  } catch (err) {
+    console.error("Salary credit failed", uid, amount, err);
+    await database.ref(`failedPayouts/salary_${uid}_${monthKey}`).set({ uid, amount, month: monthKey, at: Date.now() }).catch(() => {});
+  }
+  return amount;
+}
+
+async function runSalary(database, now) {
+  const cfgSnap = await database.ref("adminSettings/salary").get();
+  const cfg = normalizeSalary(cfgSnap.exists() ? cfgSnap.val() : null);
+  if (!cfg.enabled) return { skipped: "salary disabled" };
+  if (now.day !== cfg.payDay) return { skipped: "not salary day" };
+  if (!cfg.tiers.length) return { skipped: "no salary levels" };
+
+  const snap = await database.ref("salaryReferrals").get();
+  if (!snap.exists()) return { paidUsers: 0, totalPaid: 0 };
+
+  const entries = Object.entries(snap.val()).map(([uid, children]) => {
+    const count = Object.keys(children || {}).length;
+    const reached = cfg.tiers.filter((t) => count >= t.referrals);
+    return { uid, amount: reached.length ? reached[reached.length - 1].amount : 0 };
+  }).filter((e) => e.amount > 0);
+
+  let paidUsers = 0;
+  let totalPaid = 0;
+  for (let i = 0; i < entries.length; i += 10) {
+    const chunk = entries.slice(i, i + 10);
+    const results = await Promise.allSettled(chunk.map((e) => paySalary(database, e.uid, e.amount, now.month)));
+    results.forEach((r) => {
+      if (r.status === "fulfilled" && r.value > 0) { paidUsers++; totalPaid = round(totalPaid + r.value); }
+      else if (r.status === "rejected") console.error("Salary payout error:", r.reason);
+    });
+  }
+  return { paidUsers, totalPaid, month: now.month };
+}
 
 function authorized(req) {
   const secret = process.env.CRON_SECRET;
@@ -79,24 +149,31 @@ export default async function handler(req, res) {
   if (!lock) return res.status(200).json({ success: true, message: "Another run in progress" });
 
   try {
-    const today = istDate();
+    const ist = istNow();
+    const today = ist.date;
     const snap = await database.ref("user_projects").get();
-    if (!snap.exists()) return res.status(200).json({ success: true, message: "No projects found" });
 
-    const entries = Object.entries(snap.val());
     let paidUsers = 0;
     let totalPaid = 0;
 
-    for (let i = 0; i < entries.length; i += 10) {
-      const chunk = entries.slice(i, i + 10);
-      const results = await Promise.allSettled(chunk.map(([uid, projects]) => payUser(database, uid, projects, today)));
-      results.forEach((r) => {
-        if (r.status === "fulfilled" && r.value > 0) { paidUsers++; totalPaid = round(totalPaid + r.value); }
-        else if (r.status === "rejected") console.error("User payout error:", r.reason);
-      });
+    if (snap.exists()) {
+      const entries = Object.entries(snap.val());
+      for (let i = 0; i < entries.length; i += 10) {
+        const chunk = entries.slice(i, i + 10);
+        const results = await Promise.allSettled(chunk.map(([uid, projects]) => payUser(database, uid, projects, today)));
+        results.forEach((r) => {
+          if (r.status === "fulfilled" && r.value > 0) { paidUsers++; totalPaid = round(totalPaid + r.value); }
+          else if (r.status === "rejected") console.error("User payout error:", r.reason);
+        });
+      }
     }
 
-    return res.status(200).json({ success: true, date: today, paidUsers, totalPaid });
+    // Monthly salary (sirf pay-day par chalti hai)
+    let salary;
+    try { salary = await runSalary(database, ist); }
+    catch (err) { console.error("Salary run error:", err); salary = { error: "salary run failed" }; }
+
+    return res.status(200).json({ success: true, date: today, paidUsers, totalPaid, salary });
   } catch (error) {
     console.error("Cron payout error:", error);
     return res.status(500).json({ success: false, error: "Cron execution failed" });

@@ -3,6 +3,7 @@ import { getAuthenticatedUser, db } from "./_auth.js";
 const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 const round = (n) => Math.round(n * 1e6) / 1e6;
 const createId = () => "pr_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+const MAX_QTY = 20;
 const pct = (v, d) => (v === undefined || v === null ? d : Math.min(100, Math.max(0, num(v))));
 
 // Per-user lock: ek time par ek hi purchase (double click / parallel request block)
@@ -89,6 +90,9 @@ export default async function handler(req, res) {
     const productId = String((req.body || {}).productId || "").trim();
     if (!productId) return res.status(400).json({ success: false, message: "Product ID required" });
 
+    const quantity = Math.floor(num((req.body || {}).quantity)) || 1;
+    if (quantity < 1 || quantity > MAX_QTY) return res.status(400).json({ success: false, message: "Invalid quantity" });
+
     const database = db();
     const uid = auth.uid;
 
@@ -124,34 +128,60 @@ export default async function handler(req, res) {
         if (p.productId === productId && num(p.daysRemaining) > 0) activeCount++;
       });
     }
-    if (activeCount >= limit) {
+    const remaining = limit - activeCount;
+    if (remaining <= 0) {
       return res.status(400).json({ success: false, message: `Limit reached. You can only have ${limit} active at a time.` });
     }
+    if (quantity > remaining) {
+      return res.status(400).json({ success: false, message: `You can buy only ${remaining} more of this project (limit ${limit}, ${activeCount} active).` });
+    }
 
-    // 1) Atomic paisa katna
-    const debited = await debitWallet(database, uid, price);
+    const totalPrice = round(price * quantity);
+
+    // 1) Atomic paisa katna (poori quantity ka ek saath)
+    const debited = await debitWallet(database, uid, totalPrice);
     if (!debited) return res.status(400).json({ success: false, message: "Insufficient USDT balance" });
 
-    // 2) Project + history likhna (fail ho to refund)
-    const purchaseId = createId();
+    // 2) Projects + history ek hi write me (ya to sab ban jaayein ya kuch nahi); fail ho to refund
+    const purchaseId = createId(); // history/commission ke liye batch id
     const timestamp = Date.now();
     try {
-      await database.ref().update({
-        [`user_projects/${uid}/${purchaseId}`]: {
-          id: purchaseId, productId, name: product.name, projectType: product.projectType === "vip" ? "vip" : "normal", price, dailyProfit,
-          totalDays: validityDays, daysRemaining: validityDays, purchasedAt: timestamp,
-        },
+      const writes = {
         [`depositOrders/${purchaseId}`]: {
-          orderId: purchaseId, uid, type: "purchase", projectName: String(product.name || ""), amount: -price, currency: "USDT", status: "completed", createdAt: timestamp,
+          orderId: purchaseId, uid, type: "purchase", projectName: String(product.name || ""), quantity,
+          amount: -totalPrice, currency: "USDT", status: "completed", createdAt: timestamp,
         },
-      });
+      };
+      for (let i = 0; i < quantity; i++) {
+        const projectId = createId();
+        writes[`user_projects/${uid}/${projectId}`] = {
+          id: projectId, batchId: purchaseId, productId, name: product.name,
+          projectType: product.projectType === "vip" ? "vip" : "normal", price, dailyProfit,
+          totalDays: validityDays, daysRemaining: validityDays, purchasedAt: timestamp,
+        };
+      }
+      await database.ref().update(writes);
     } catch (err) {
       console.error("Purchase write failed, refunding:", err);
       await database.ref(`wallets/${uid}`).transaction((w) => {
         const cur = w || {};
-        return { ...cur, balance: round(num(cur.balance) + price), totalInvested: round(Math.max(0, num(cur.totalInvested) - price)) };
+        return { ...cur, balance: round(num(cur.balance) + totalPrice), totalInvested: round(Math.max(0, num(cur.totalInvested) - totalPrice)) };
       });
       return res.status(500).json({ success: false, message: "Transaction failed" });
+    }
+
+    // 2b) Salary programme: referral ki PEHLI purchase par uske referrer ki "successful directs" me ginti
+    // (jinke paas pehle se projects the, wo ginti me nahi aate; ek referral sirf ek baar ginta hai)
+    try {
+      if (!myProjectsSnap.exists()) {
+        const attr = await database.ref(`referralAttributions/${uid}`).get();
+        const referrerUid = attr.exists() ? attr.val().referrerUid : null;
+        if (referrerUid && referrerUid !== uid) {
+          await database.ref(`salaryReferrals/${referrerUid}/${uid}`).transaction((cur) => (cur === null ? Date.now() : undefined));
+        }
+      }
+    } catch (err) {
+      console.error("Salary referral count error:", err);
     }
 
     // 3) Referral commission: har level ko ek purchase par sirf ek baar
@@ -170,7 +200,7 @@ export default async function handler(req, res) {
         currentUid = uplineUid;
 
         if (percents[i] <= 0) continue;
-        const commAmount = round((price * percents[i]) / 100);
+        const commAmount = round((totalPrice * percents[i]) / 100);
         if (commAmount <= 0) continue;
 
         const commLogId = `comm_${purchaseId}_L${i + 1}`;
@@ -186,10 +216,10 @@ export default async function handler(req, res) {
     } catch (err) {
       // Purchase ho chuka hai; commission error ko log karo, user ko fail mat dikhao
       console.error("Commission error for", purchaseId, err);
-      await database.ref(`failedCommissions/${purchaseId}`).set({ uid, purchaseId, price, at: Date.now() }).catch(() => {});
+      await database.ref(`failedCommissions/${purchaseId}`).set({ uid, purchaseId, price: totalPrice, at: Date.now() }).catch(() => {});
     }
 
-    return res.status(200).json({ success: true, message: "Project purchased successfully!" });
+    return res.status(200).json({ success: true, quantity, message: quantity > 1 ? `${quantity} projects purchased successfully!` : "Project purchased successfully!" });
   } catch (error) {
     console.error("Purchase error:", error);
     return res.status(500).json({ success: false, message: "Transaction failed" });

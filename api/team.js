@@ -14,6 +14,21 @@ function sendError(res, status, message) {
   return res.status(status).json({ success: false, error: message });
 }
 
+const DEFAULT_SALARY = {
+  enabled: true,
+  payDay: 20,
+  tiers: [{ referrals: 30, amount: 90 }],
+};
+
+function normalizeSalary(raw) {
+  const cfg = raw && typeof raw === 'object' ? raw : DEFAULT_SALARY;
+  const tiers = (Array.isArray(cfg.tiers) ? cfg.tiers : [])
+    .map((t) => ({ referrals: Math.floor(num(t && t.referrals)), amount: num(t && t.amount) }))
+    .filter((t) => t.referrals >= 1 && t.amount > 0)
+    .sort((a, b) => a.referrals - b.referrals);
+  return { enabled: cfg.enabled !== false, payDay: Math.min(28, Math.max(1, Math.floor(num(cfg.payDay)) || 20)), tiers };
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, private');
   if (req.method !== 'GET') { res.setHeader('Allow', 'GET'); return sendError(res, 405, 'Method not allowed'); }
@@ -28,10 +43,27 @@ export default async function handler(req, res) {
     const currentProfile = currentSnapshot.val();
     if (!currentProfile.noirId || currentProfile.status !== 'active') return sendError(res, 403, 'Active NOIR profile required');
 
-    const [attributionSnapshot, commissionSnap] = await Promise.all([
+    const [attributionSnapshot, commissionSnap, salaryCfgSnap, salaryRefSnap] = await Promise.all([
       database.ref('referralAttributions').get(),
       database.ref('depositOrders').orderByChild('uid').equalTo(user.uid).get(),
+      database.ref('adminSettings/salary').get(),
+      database.ref(`salaryReferrals/${user.uid}`).get(),
     ]);
+
+    // Salary: successful direct referrals (jinhone pehli purchase ki) ki ginti aur levels
+    const salaryCfg = normalizeSalary(salaryCfgSnap.exists() ? salaryCfgSnap.val() : null);
+    const successfulCount = salaryRefSnap.exists() ? Object.keys(salaryRefSnap.val() || {}).length : 0;
+    const reached = salaryCfg.tiers.filter((tr) => successfulCount >= tr.referrals);
+    const currentTier = reached.length ? reached[reached.length - 1] : null;
+    const nextTier = salaryCfg.tiers.find((tr) => successfulCount < tr.referrals) || null;
+    const salary = {
+      enabled: salaryCfg.enabled,
+      payDay: salaryCfg.payDay,
+      count: successfulCount,
+      tiers: salaryCfg.tiers,
+      currentAmount: currentTier ? currentTier.amount : 0,
+      nextTier,
+    };
 
     // Is user ko har member se kitni commission mili (fromUid = kharidne wala member)
     const commissionBySource = new Map();
@@ -95,6 +127,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       success: true,
+      salary,
       level1: levels[1],
       level2: levels[2],
       level3: levels[3],

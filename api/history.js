@@ -1,6 +1,6 @@
 import { getAuthenticatedUser, db } from "./_auth.js";
 
-const LEDGER_KINDS = ["purchase", "commission", "daily_profit"];
+const LEDGER_KINDS = ["purchase", "commission", "daily_profit", "salary"];
 
 function maskAddress(address) {
   const a = String(address || "");
@@ -47,6 +47,7 @@ export default async function handler(req, res) {
           currency: o.currency || "USDT",
           status: o.status,
           projectName: kind === "purchase" ? String(o.projectName || "") : "",
+          quantity: kind === "purchase" ? Math.max(1, Math.floor(Number(o.quantity)) || 1) : 0,
           level: kind === "commission" ? Number(o.level) || 0 : 0,
           createdAt: o.createdAt || 0,
         });
