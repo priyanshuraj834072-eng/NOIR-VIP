@@ -7,7 +7,8 @@ import { promisify } from "node:util";
 import {
   db,
   normalizeIndianPhone,
-  sha256
+  sha256,
+  getAuthenticatedUser
 } from "./_auth.js";
 
 const scrypt = promisify(scryptCallback);
@@ -420,6 +421,122 @@ async function login(req, res) {
   });
 }
 
+// Logged-in user ka password badalna (purana password dena zaroori)
+async function changePassword(req, res) {
+  const auth = await getAuthenticatedUser(req);
+
+  if (!auth || !auth.uid) {
+    return res.status(401).json({
+      success: false,
+      error: "Please sign in again."
+    });
+  }
+
+  if (auth.authType !== "custom") {
+    return res.status(400).json({
+      success: false,
+      error: "Password change is not available for this account."
+    });
+  }
+
+  const currentPassword =
+    typeof req.body?.currentPassword === "string"
+      ? req.body.currentPassword
+      : "";
+
+  const newPassword =
+    typeof req.body?.newPassword === "string"
+      ? req.body.newPassword
+      : "";
+
+  if (!currentPassword || currentPassword.length > 128) {
+    return res.status(400).json({
+      success: false,
+      error: "Enter your current password."
+    });
+  }
+
+  if (newPassword.length < 8 || newPassword.length > 128) {
+    return res.status(400).json({
+      success: false,
+      error: "New password must be 8–128 characters."
+    });
+  }
+
+  if (newPassword === currentPassword) {
+    return res.status(400).json({
+      success: false,
+      error: "New password must be different from the current one."
+    });
+  }
+
+  const database = db();
+
+  // Har user ke liye 15 minute me sirf 5 koshish (galat password se guess rokne ke liye)
+  if (
+    !(await rateLimit(
+      database,
+      "passwordChangeRateLimits",
+      auth.uid,
+      5
+    ))
+  ) {
+    return res.status(429).json({
+      success: false,
+      error: "Too many attempts. Try again in 15 minutes."
+    });
+  }
+
+  const credentialRef = database.ref(`authCredentials/${auth.uid}`);
+  const credentialSnap = await credentialRef.get();
+
+  if (!credentialSnap.exists()) {
+    return res.status(400).json({
+      success: false,
+      error: "Password change is not available for this account."
+    });
+  }
+
+  const credential = credentialSnap.val();
+
+  if (
+    credential.passwordScheme !== "scrypt-64-v1" ||
+    !credential.salt ||
+    !credential.passwordHash
+  ) {
+    return res.status(400).json({
+      success: false,
+      error: "Account credentials need support. Contact NOIR support."
+    });
+  }
+
+  const calculated = await passwordDigest(currentPassword, credential.salt);
+  const a = Buffer.from(calculated, "hex");
+  const b = Buffer.from(String(credential.passwordHash), "hex");
+
+  if (a.length !== b.length || !timingSafeEqual(a, b)) {
+    return res.status(401).json({
+      success: false,
+      error: "Current password is incorrect."
+    });
+  }
+
+  const salt = randomBytes(16).toString("hex");
+  const passwordHash = await passwordDigest(newPassword, salt);
+
+  await credentialRef.update({
+    salt,
+    passwordHash,
+    passwordScheme: "scrypt-64-v1",
+    updatedAt: Date.now()
+  });
+
+  return res.status(200).json({
+    success: true,
+    message: "Password updated."
+  });
+}
+
 async function logout(req, res) {
   const match = String(
     req.headers.authorization || ""
@@ -474,6 +591,10 @@ export default async function handler(req, res) {
 
     if (action === "logout") {
       return await logout(req, res);
+    }
+
+    if (action === "changepassword") {
+      return await changePassword(req, res);
     }
 
     return res.status(400).json({
