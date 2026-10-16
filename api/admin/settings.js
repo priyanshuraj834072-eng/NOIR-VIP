@@ -151,6 +151,40 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, message: "Referral settings saved", settings: updated });
     }
 
+    if (action === "updateSalary") {
+      const currentSnap = await database.ref("adminSettings").get();
+      const current = currentSnap.exists() ? currentSnap.val() : DEFAULT_SETTINGS;
+
+      const payDay = Math.floor(Number(body.payDay));
+      if (!Number.isFinite(payDay) || payDay < 1 || payDay > 28) {
+        return fail(res, 400, "Pay day must be between 1 and 28");
+      }
+
+      const rawTiers = Array.isArray(body.tiers) ? body.tiers : [];
+      if (rawTiers.length > 20) return fail(res, 400, "Maximum 20 salary levels allowed");
+
+      const seen = new Set();
+      const tiers = [];
+      for (const t of rawTiers) {
+        const referrals = Math.floor(Number(t && t.referrals));
+        const amount = Number(t && t.amount);
+        if (!Number.isFinite(referrals) || referrals < 1 || referrals > 1000000) return fail(res, 400, "Each level needs a valid referral count");
+        if (!Number.isFinite(amount) || amount < 0 || amount > 1000000) return fail(res, 400, "Each level needs a valid salary amount");
+        if (seen.has(referrals)) return fail(res, 400, "Two levels have the same referral count: " + referrals);
+        seen.add(referrals);
+        tiers.push({ referrals, amount: Math.round(amount * 100) / 100 });
+      }
+      tiers.sort((a, b) => a.referrals - b.referrals);
+
+      const updated = {
+        ...current,
+        salary: { enabled: body.enabled === true, payDay, tiers },
+        updatedAt: Date.now(),
+      };
+      await database.ref("adminSettings").set(updated);
+      return res.status(200).json({ success: true, message: "Salary settings saved", settings: updated });
+    }
+
     if (action === "updateSupport") {
       const currentSnap = await database.ref("adminSettings").get();
       const current = currentSnap.exists() ? currentSnap.val() : DEFAULT_SETTINGS;
