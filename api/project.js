@@ -52,11 +52,14 @@ export default async function handler(req, res) {
     try {
       const auth = await getAuthenticatedUser(req);
       const database = db();
-      const [productsSnap, myProjectsSnap, supportSnap] = await Promise.all([
+      const [productsSnap, myProjectsSnap, supportSnap, referralSnap] = await Promise.all([
         database.ref("products").get(),
         auth ? database.ref(`user_projects/${auth.uid}`).get() : Promise.resolve({ exists: () => false }),
         database.ref("adminSettings/support").get(),
+        database.ref("adminSettings/referral").get(),
       ]);
+      const rf = referralSnap.exists() ? referralSnap.val() : {};
+      const referral = { level1: pct(rf.commissionPercent, 25), level2: pct(rf.level2Percent, 3), level3: pct(rf.level3Percent, 1) };
       const sup = supportSnap.exists() ? supportSnap.val() : {};
       const support = {
         telegramUsername: /^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(String(sup.telegramUsername || "")) ? String(sup.telegramUsername) : "",
@@ -71,7 +74,7 @@ export default async function handler(req, res) {
         });
       }
       const myProjects = myProjectsSnap.exists() ? Object.values(myProjectsSnap.val()) : [];
-      return res.status(200).json({ success: true, products, myProjects, support, serverTime: Date.now() });
+      return res.status(200).json({ success: true, products, myProjects, support, referral, serverTime: Date.now() });
     } catch (error) {
       return res.status(500).json({ success: false, message: "Failed to load projects" });
     }
