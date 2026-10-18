@@ -101,60 +101,130 @@ export default async function handler(req, res) {
     const body = req.body || {};
     const action = String(body.action || "").trim();
 
+    if (action === "stats") {
+      const now = Date.now();
+      const DAY = 86400000;
+      const IST = 330 * 60000;
+      const todayStart = Math.floor((now + IST) / DAY) * DAY - IST; // India ka aaj
+      const r2 = (n) => Math.round(n * 100) / 100;
+
+      const [depSnap, wdrSnap, salCfgSnap, salRefSnap, walletsSnap] = await Promise.all([
+        database.ref("depositOrders").get(),
+        database.ref("withdrawalRequests").get(),
+        database.ref("adminSettings/salary").get(),
+        database.ref("salaryReferrals").get(),
+        database.ref("wallets").get(),
+      ]);
+
+      let totalUserBalance = 0, walletCount = 0;
+      walletsSnap.forEach((child) => {
+        const w = child.val() || {};
+        totalUserBalance += Number(w.balance) || 0;
+        walletCount += 1;
+      });
+
+      let totalDeposit = 0, todayDeposit = 0, todayInvestment = 0;
+      depSnap.forEach((child) => {
+        const o = child.val() || {};
+        const amt = Number(o.amount) || 0;
+        if (!o.type || o.type === "deposit") {
+          if (o.status === "paid") {
+            totalDeposit += amt;
+            if ((Number(o.paidAt) || Number(o.createdAt) || 0) >= todayStart) todayDeposit += amt;
+          }
+        } else if (o.type === "purchase") {
+          if ((Number(o.createdAt) || 0) >= todayStart) todayInvestment += -amt;
+        }
+      });
+
+      const PENDING = ["processing", "confirming", "review_required"];
+      let totalWithdrawal = 0, pendingWithdrawal = 0, todayWithdrawal = 0;
+      wdrSnap.forEach((child) => {
+        const w = child.val() || {};
+        const amt = Number(w.amount) || 0;
+        const done = w.status === "completed";
+        const pend = PENDING.includes(w.status);
+        if (done) totalWithdrawal += amt;
+        if (pend) pendingWithdrawal += amt;
+        if ((done || pend) && (Number(w.createdAt) || 0) >= todayStart) todayWithdrawal += amt;
+      });
+
+      // Salary: is mahine ki payday par sabko kul kitna jaayega
+      const cfg = salCfgSnap.exists() ? salCfgSnap.val() : { enabled: true, payDay: 20, tiers: [{ referrals: 30, amount: 90 }] };
+      const tiers = (Array.isArray(cfg.tiers) ? cfg.tiers : [])
+        .map((t) => ({ referrals: Math.floor(Number(t && t.referrals)) || 0, amount: Number(t && t.amount) || 0 }))
+        .filter((t) => t.referrals >= 1 && t.amount > 0)
+        .sort((a, b) => a.referrals - b.referrals);
+      let salaryTotal = 0, salaryUsers = 0;
+      if (cfg.enabled !== false && salRefSnap.exists()) {
+        Object.values(salRefSnap.val()).forEach((children) => {
+          const count = Object.keys(children || {}).length;
+          const reached = tiers.filter((t) => count >= t.referrals);
+          if (reached.length) { salaryTotal += reached[reached.length - 1].amount; salaryUsers += 1; }
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        stats: {
+          totalUserBalance: r2(totalUserBalance),
+          walletCount,
+          totalDeposit: r2(totalDeposit),
+          totalWithdrawal: r2(totalWithdrawal),
+          pendingWithdrawal: r2(pendingWithdrawal),
+          todayDeposit: r2(todayDeposit),
+          todayWithdrawal: r2(todayWithdrawal),
+          todayInvestment: r2(todayInvestment),
+          salary: { enabled: cfg.enabled !== false, payDay: Number(cfg.payDay) || 20, totalAmount: r2(salaryTotal), users: salaryUsers },
+        },
+      });
+    }
+
+    // Neeche ke 4 save actions ab sirf ek hi database write karte hain (pehle read + write do chakkar the),
+    // aur sirf badla hua hissa wapas bhejte hain (patch), taaki admin panel turant update ho.
+    const validNum = (v, min) => {
+      const n = Number(v);
+      return Number.isFinite(n) && n >= min ? Math.round(n * 1000000) / 1000000 : null;
+    };
+
     if (action === "updatePayments") {
-      const currentSnap = await database.ref("adminSettings").get();
-      const current = currentSnap.exists() ? currentSnap.val() : DEFAULT_SETTINGS;
       const p = body.payments || {};
-      const c = current.payments || {};
+      const minDeposit = validNum(p.minDeposit, 0.01);
+      const maxDeposit = validNum(p.maxDeposit, 0.01);
+      const minWithdrawal = validNum(p.minWithdrawal, 0.01);
+      const maxWithdrawal = validNum(p.maxWithdrawal, 0.01);
 
-      const minDeposit = numberValue(p.minDeposit, c.minDeposit ?? 1, 0.01);
-      const maxDeposit = numberValue(p.maxDeposit, c.maxDeposit ?? 100000, 0.01);
-      const minWithdrawal = numberValue(p.minWithdrawal, c.minWithdrawal ?? 1, 0.01);
-      const maxWithdrawal = numberValue(p.maxWithdrawal, c.maxWithdrawal ?? 100000, 0.01);
-
+      if ([minDeposit, maxDeposit, minWithdrawal, maxWithdrawal].some((v) => v === null)) {
+        return fail(res, 400, "Enter valid minimum and maximum amounts");
+      }
       if (maxDeposit < minDeposit) return fail(res, 400, "Maximum deposit cannot be lower than minimum deposit");
       if (maxWithdrawal < minWithdrawal) return fail(res, 400, "Maximum withdrawal cannot be lower than minimum withdrawal");
 
-      const updated = {
-        ...current,
-        payments: {
-          depositEnabled: typeof p.depositEnabled === "boolean" ? p.depositEnabled : Boolean(c.depositEnabled ?? true),
-          minDeposit, maxDeposit,
-          withdrawalEnabled: typeof p.withdrawalEnabled === "boolean" ? p.withdrawalEnabled : Boolean(c.withdrawalEnabled ?? true),
-          minWithdrawal, maxWithdrawal,
-        },
-        updatedAt: Date.now(),
+      const payments = {
+        depositEnabled: typeof p.depositEnabled === "boolean" ? p.depositEnabled : true,
+        minDeposit, maxDeposit,
+        withdrawalEnabled: typeof p.withdrawalEnabled === "boolean" ? p.withdrawalEnabled : true,
+        minWithdrawal, maxWithdrawal,
+        requireProjectForWithdrawal: typeof p.requireProjectForWithdrawal === "boolean" ? p.requireProjectForWithdrawal : false,
       };
-      await database.ref("adminSettings").set(updated);
-      return res.status(200).json({ success: true, message: "Payment settings saved", settings: updated });
+      await database.ref("adminSettings").update({ payments, updatedAt: Date.now() });
+      return res.status(200).json({ success: true, message: "Payment settings saved", patch: { payments } });
     }
 
     if (action === "updateReferral") {
-      const currentSnap = await database.ref("adminSettings").get();
-      const current = currentSnap.exists() ? currentSnap.val() : DEFAULT_SETTINGS;
-      const r = current.referral || {};
-
-      // Pehle level2/level3 overwrite hokar delete ho jaate the; ab preserve hote hain
-      const l1 = numberValue(body.commissionPercent, r.commissionPercent ?? 25, 0);
-      const l2 = numberValue(body.level2Percent, r.level2Percent ?? 3, 0);
-      const l3 = numberValue(body.level3Percent, r.level3Percent ?? 1, 0);
-
+      const l1 = validNum(body.commissionPercent, 0);
+      const l2 = validNum(body.level2Percent, 0);
+      const l3 = validNum(body.level3Percent, 0);
+      if (l1 === null || l2 === null || l3 === null) return fail(res, 400, "Enter valid commission percentages");
       if (l1 > 100 || l2 > 100 || l3 > 100) return fail(res, 400, "Commission cannot exceed 100%");
       if (l1 + l2 + l3 > 100) return fail(res, 400, "Total commission cannot exceed 100%");
 
-      const updated = {
-        ...current,
-        referral: { commissionPercent: l1, level2Percent: l2, level3Percent: l3 },
-        updatedAt: Date.now(),
-      };
-      await database.ref("adminSettings").set(updated);
-      return res.status(200).json({ success: true, message: "Referral settings saved", settings: updated });
+      const referral = { commissionPercent: l1, level2Percent: l2, level3Percent: l3 };
+      await database.ref("adminSettings").update({ referral, updatedAt: Date.now() });
+      return res.status(200).json({ success: true, message: "Referral settings saved", patch: { referral } });
     }
 
     if (action === "updateSalary") {
-      const currentSnap = await database.ref("adminSettings").get();
-      const current = currentSnap.exists() ? currentSnap.val() : DEFAULT_SETTINGS;
-
       const payDay = Math.floor(Number(body.payDay));
       if (!Number.isFinite(payDay) || payDay < 1 || payDay > 28) {
         return fail(res, 400, "Pay day must be between 1 and 28");
@@ -176,19 +246,12 @@ export default async function handler(req, res) {
       }
       tiers.sort((a, b) => a.referrals - b.referrals);
 
-      const updated = {
-        ...current,
-        salary: { enabled: body.enabled === true, payDay, tiers },
-        updatedAt: Date.now(),
-      };
-      await database.ref("adminSettings").set(updated);
-      return res.status(200).json({ success: true, message: "Salary settings saved", settings: updated });
+      const salary = { enabled: body.enabled === true, payDay, tiers };
+      await database.ref("adminSettings").update({ salary, updatedAt: Date.now() });
+      return res.status(200).json({ success: true, message: "Salary settings saved", patch: { salary } });
     }
 
     if (action === "updateSupport") {
-      const currentSnap = await database.ref("adminSettings").get();
-      const current = currentSnap.exists() ? currentSnap.val() : DEFAULT_SETTINGS;
-
       let telegramUsername = String(body.telegramUsername || "").trim()
         .replace(/^https?:\/\/(t|telegram)\.me\//i, "").replace(/^@/, "");
       if (telegramUsername && !/^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(telegramUsername)) {
@@ -200,13 +263,9 @@ export default async function handler(req, res) {
         return fail(res, 400, "Channel link must look like https://t.me/your_channel");
       }
 
-      const updated = {
-        ...current,
-        support: { telegramUsername, channelLink },
-        updatedAt: Date.now(),
-      };
-      await database.ref("adminSettings").set(updated);
-      return res.status(200).json({ success: true, message: "Support settings saved", settings: updated });
+      const support = { telegramUsername, channelLink };
+      await database.ref("adminSettings").update({ support, updatedAt: Date.now() });
+      return res.status(200).json({ success: true, message: "Support settings saved", patch: { support } });
     }
 
     if (action === "addProduct") {
