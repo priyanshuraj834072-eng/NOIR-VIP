@@ -6,13 +6,28 @@ import {
 import { promisify } from "node:util";
 import {
   db,
-  normalizeIndianPhone,
   sha256,
   getAuthenticatedUser
 } from "./_auth.js";
 
 const scrypt = promisify(scryptCallback);
 const SESSION_MS = 30 * 24 * 60 * 60 * 1000;
+
+// Sirf Gmail. a.b@gmail.com, ab+1@gmail.com aur ab@googlemail.com ek hi inbox hain,
+// isliye sab ko ek hi "ab@gmail.com" maana jaata hai (ek inbox se anginat account na ban sakein).
+function normalizeGmail(value) {
+  const raw = String(value || "").trim().toLowerCase();
+  if (!raw || raw.length > 254) return null;
+  const m = raw.match(/^([a-z0-9.]+)(\+[^@\s]*)?@(gmail\.com|googlemail\.com)$/);
+  if (!m) return null;
+  const local = m[1].replace(/\./g, "");
+  if (!/^[a-z0-9]{6,30}$/.test(local)) return null;
+  return local + "@gmail.com";
+}
+
+function typedEmail(value) {
+  return String(value || "").trim().toLowerCase().slice(0, 254);
+}
 
 async function passwordDigest(password, salt) {
   return (await scrypt(password, salt, 64)).toString("hex");
@@ -81,20 +96,18 @@ async function reserveNoirId(database, uid) {
 }
 
 async function register(req, res) {
-  const phoneNumber = normalizeIndianPhone(
-    req.body?.phoneNumber ?? req.body?.phone
-  );
+  const email = normalizeGmail(req.body?.email);
 
   const password =
     typeof req.body?.password === "string"
       ? req.body.password
       : "";
 
-  if (!phoneNumber) {
+  if (!email) {
     return res.status(400).json({
       success: false,
       error:
-        "Enter a valid Indian mobile number (+91 and 10 digits)."
+        "Enter a valid Gmail address (like name@gmail.com)."
     });
   }
 
@@ -122,14 +135,14 @@ async function register(req, res) {
     });
   }
 
-  const phoneHash = sha256(phoneNumber);
-  const phoneIndexRef =
-    database.ref(`phoneIndex/${phoneHash}`);
+  const emailHash = sha256(email);
+  const emailIndexRef =
+    database.ref(`emailIndex/${emailHash}`);
 
   const uid =
     "nr_" + randomBytes(16).toString("hex");
 
-  const reserve = await phoneIndexRef.transaction(
+  const reserve = await emailIndexRef.transaction(
     (current) =>
       current === null ? uid : undefined
   );
@@ -138,7 +151,7 @@ async function register(req, res) {
     return res.status(409).json({
       success: false,
       error:
-        "This mobile number already has an account. Please sign in."
+        "This Gmail already has an account. Please sign in."
     });
   }
 
@@ -158,7 +171,7 @@ async function register(req, res) {
 
     const profile = {
       uid,
-      phoneNumber,
+      email: typedEmail(req.body?.email),
       noirId,
       name: "NOIR Member",
       createdAt: now,
@@ -201,7 +214,7 @@ async function register(req, res) {
       profile: {
         uid,
         name: profile.name,
-        phoneNumber,
+        email: profile.email,
         noirId,
         createdAt: now,
         status: "active"
@@ -216,10 +229,10 @@ async function register(req, res) {
     );
 
     const current =
-      await phoneIndexRef.get().catch(() => null);
+      await emailIndexRef.get().catch(() => null);
 
     if (current?.val() === uid) {
-      await phoneIndexRef
+      await emailIndexRef
         .remove()
         .catch(() => {});
     }
@@ -255,9 +268,7 @@ async function register(req, res) {
 }
 
 async function login(req, res) {
-  const phoneNumber = normalizeIndianPhone(
-    req.body?.phoneNumber ?? req.body?.phone
-  );
+  const email = normalizeGmail(req.body?.email);
 
   const password =
     typeof req.body?.password === "string"
@@ -265,14 +276,14 @@ async function login(req, res) {
       : "";
 
   if (
-    !phoneNumber ||
+    !email ||
     !password ||
     password.length > 128
   ) {
     return res.status(400).json({
       success: false,
       error:
-        "Enter a valid mobile number and password."
+        "Enter a valid Gmail address and password."
     });
   }
 
@@ -295,7 +306,7 @@ async function login(req, res) {
 
   const uid = (
     await database
-      .ref(`phoneIndex/${sha256(phoneNumber)}`)
+      .ref(`emailIndex/${sha256(email)}`)
       .get()
   ).val();
 
@@ -303,7 +314,7 @@ async function login(req, res) {
     return res.status(401).json({
       success: false,
       error:
-        "Mobile number or password is incorrect."
+        "Email or password is incorrect."
     });
   }
 
@@ -327,7 +338,7 @@ async function login(req, res) {
     return res.status(401).json({
       success: false,
       error:
-        "Mobile number or password is incorrect."
+        "Email or password is incorrect."
     });
   }
 
@@ -370,7 +381,7 @@ async function login(req, res) {
     return res.status(401).json({
       success: false,
       error:
-        "Mobile number or password is incorrect."
+        "Email or password is incorrect."
     });
   }
 
@@ -411,9 +422,7 @@ async function login(req, res) {
     profile: {
       uid,
       name: profile.name || "NOIR Member",
-      phoneNumber:
-        profile.phoneNumber ||
-        phoneNumber,
+      email: profile.email || typedEmail(req.body?.email),
       noirId: profile.noirId,
       createdAt: profile.createdAt,
       status: profile.status
